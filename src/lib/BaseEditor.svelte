@@ -20,7 +20,7 @@
   /**
    * IMPORTS
    */
-  import { onMount } from "svelte";
+  import { onMount, createEventDispatcher } from "svelte";
   import type { EditorView } from "@codemirror/view";
   import type { Compartment } from "@codemirror/state";
   import type { Language } from "../types";
@@ -58,6 +58,7 @@
 
   onMount(() => {
     userCode = code;
+    dispatch('mount');
   });
 
   /**
@@ -167,6 +168,8 @@
       textSize = JSON.stringify(data) + "px";
     })
     .catch(() => {}); // Ignore error, we are not using the mobile app
+
+  const dispatch = createEventDispatcher();
 </script>
 
 <!-- Editor's HTML -->
