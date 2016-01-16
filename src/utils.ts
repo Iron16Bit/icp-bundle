@@ -5,6 +5,12 @@ import { basicSetup } from "codemirror";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { editableSelection, notEditableSelection, readOnlyTransactionFilter } from "./modules/readonly";
 
+const ySelectionTheme = EditorView.baseTheme({
+    ".cm-ySelectionInfo": {
+        transform: "translateY(200%) !important"
+    }
+});
+
 /**
  * Create a CodeMirror editor
  * @param querySelection DOM elements in which we want to create the editor
@@ -30,6 +36,7 @@ function createEditor(element, language, enableDarkMode = false, initialText = '
         basicSetup,
         EditorView.lineWrapping,
         language,
+        ySelectionTheme, 
         tabsConfiguration.of([]),
         darkModeConfiguration.of(enableDarkMode ? oneDark : []),
         // Fire event execute when clicking CTRL+ENTER

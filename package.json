@@ -80,6 +80,23 @@
     "lodash": "^4.17.21",
     "p5": "^1.5.0",
     "split.js": "^1.6.5",
-    "sql.js": "^1.6.2"
+    "sql.js": "^1.6.2",
+    "@chainsafe/libp2p-gossipsub": "^14.0.0",
+    "@chainsafe/libp2p-noise": "^16.0.0",
+    "@chainsafe/libp2p-yamux": "^7.0.0",
+    "@libp2p/bootstrap": "^11.0.0",
+    "@libp2p/circuit-relay-v2": "^3.0.0",
+    "@libp2p/dcutr": "^2.0.0",
+    "@libp2p/identify": "^3.0.0",
+    "@libp2p/kad-dht": "^14.0.0",
+    "@libp2p/webrtc": "^5.0.0",
+    "@libp2p/websockets": "^9.0.0",
+    "@multiformats/multiaddr": "^12.3.1",
+    "libp2p": "^2.0.0",
+    "multiformats": "^13.0.0",
+    "uint8arrays": "^5.1.0",
+    "y-codemirror.next": "^0.3.5",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.10"
   }
 }

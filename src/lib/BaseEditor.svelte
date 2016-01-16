@@ -36,6 +36,7 @@
   import ThemeSwitch from "./components/ThemeSwitch.svelte";
   import DownloadButton from "./components/DownloadButton.svelte";
   import type { LanguageSupport } from "@codemirror/language";
+  import CollaborateButton from "./components/CollaborateButton.svelte";
 
   /**
    * ELEMENTS
@@ -58,7 +59,7 @@
 
   onMount(() => {
     userCode = code;
-    dispatch('mount');
+    dispatch("mount");
   });
 
   /**
@@ -189,6 +190,9 @@
       setTheme(event.detail.darkMode);
     }}
   />
+
+  <!-- Collaborate Button with editor reference -->
+  <collaborate-button {theme} {type} editor={codeMirrorEditor} />
 
   <!-- Button allowing the user to download the code snippet -->
   {#if downloadable}
