@@ -63,33 +63,38 @@
       <section>
         <p class="subtitle">&lt;javascript-editor /&gt;</p>
         <div class="big-code">
-          <javascript-editor contenteditable="true" code="console.log('Hello World!')"></javascript-editor>
+          <javascript-editor contenteditable="true">
+console.log('Hello World!')
+          </javascript-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;python-editor <span class="emph">theme</span>="dark" /&gt;</p>
         <div class="big-code">
-          <python-editor contenteditable="true" downloadable="true" requestImport="true" theme="dark" code='print("Hello, world!")'>
+          <python-editor contenteditable="true" downloadable="true" requestImport="true" theme="dark">
+print("Hello, world!")
           </python-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;cpp-editor <span class="emph">theme</span>="dark" /&gt;</p>
         <div class="big-code">
-          <cpp-editor contenteditable="true" downloadable="true" requestImport="true" theme="dark" code='#include <iostream>
+          <cpp-editor contenteditable="true" downloadable="true" requestImport="true" theme="dark">
+#include  &lt;iostream&gt;
 using namespace std;
 
 int main() {
-    cout << "Hello World!" << endl;
+    cout &lt;&lt; "Hello World!" &lt;&lt; endl;
     return 0;
-}'>
+}
           </cpp-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;typescript-editor <span class="emph">type</span>="vertical" /&gt;</p>
         <div class="big-code">
-          <typescript-editor contenteditable="true" type="vertical" code="class Greeter {
+          <typescript-editor contenteditable="true" type="vertical">
+class Greeter {
   greeting: string;
     
   constructor(message: string) {
@@ -102,31 +107,37 @@ int main() {
 }
     
 let greeter = new Greeter('World!');
-console.log(greeter.greet());"></typescript-editor>
+console.log(greeter.greet());
+          </typescript-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;java-editor <span class="emph">theme</span>="dark" /&gt;</p>
         <div class="big-code">
-          <java-editor contenteditable="true" theme="dark" requestImport="true" code='public class HelloWorld {
+          <java-editor contenteditable="true" theme="dark" requestImport="true">
+public class HelloWorld {
   public static void main(String[] args) {
     System.out.println("<EDITABLE>Hello, World</EDITABLE>!"); 
   }
-}'></java-editor>
+}
+          </java-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;standardml-editor <span class="emph">theme</span>="dark" /&gt;</p>
         <div class="big-code">
-          <standardml-editor contenteditable="true" theme="dark" code='fun fact n = if n = 0 then 1 else n * fact(n - 1);
+          <standardml-editor contenteditable="true" theme="dark">
+fun fact n = if n = 0 then 1 else n * fact(n - 1);
 
-fact 5;'></standardml-editor>
+fact 5;
+          </standardml-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;sql-editor <span class="emph">type</span>="vertical" /&gt;</p>
         <div class="big-code">
-          <sql-editor contenteditable="true" type="vertical" code="DROP TABLE IF EXISTS employees;
+          <sql-editor contenteditable="true" type="vertical">
+DROP TABLE IF EXISTS employees;
 -- Create the table
 CREATE TABLE employees( id          integer,  name    text,
                           designation text,     manager integer,
@@ -151,13 +162,15 @@ INSERT INTO employees VALUES (14,'ROOSEVELT','CPA',9,'1995-10-12',35000,NULL,1);
 
 -- Select
 SELECT designation,COUNT(*) AS nbr, (AVG(salary)) AS avg_salary FROM employees GROUP BY designation ORDER BY avg_salary DESC;
-SELECT name,hired_on FROM employees ORDER BY hired_on;"></sql-editor>
+SELECT name,hired_on FROM employees ORDER BY hired_on;
+          </sql-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;p5-editor <span class="emph">type</span>="vertical" /&gt;</p>
         <div class="big-code">
-          <p5-editor contenteditable="true" type="vertical" code="function setup() {
+          <p5-editor contenteditable="true" type="vertical">
+function setup() {
   createCanvas(400, 400);
 }
 
@@ -168,13 +181,15 @@ function draw() {
     fill(255);
   }
   ellipse(mouseX, mouseY, 80, 80);
-}"></p5-editor>
+}
+          </p5-editor>
         </div>
       </section>
       <section>
         <p class="subtitle">&lt;processing-editor <span class="emph">type</span>="vertical" /&gt;</p>
         <div class="big-code">
-          <processing-editor contenteditable="true" type="vertical" code="float xoff = 0.0;
+          <processing-editor contenteditable="true" type="vertical">
+float xoff = 0.0;
 float xincrement = 0.01; 
 
 void setup() {
@@ -199,7 +214,8 @@ void draw() {
   // Draw the ellipse at the value produced by perlin noise
   fill(200);
   ellipse(n,height/2, 64, 64);
-}"></processing-editor>
+}
+          </processing-editor>
         </div>
       </section>
     </div>

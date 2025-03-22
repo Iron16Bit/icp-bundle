@@ -2,7 +2,6 @@
 
 <script lang="ts">
     export let theme: "light" | "dark" = "light";
-    export let code = "";
     export let id = "";
     export let save = false;
     export let downloadable = false;
@@ -15,22 +14,45 @@
     import { transformProcessing } from "../modules/processing/utils";
     import * as babel from "@babel/standalone";
     import protect from "@freecodecamp/loop-protect";
+
+    let editorContent = "";
+    let contentLoaded = false;
+
+    onMount(() => {
+        // When mounting the editor, get code in the <slot>
+        setTimeout(() => {
+            const element = document.querySelector('processing-editor');
+            if (element) {
+                editorContent = element.textContent.trim();
+                // Mark content as loaded and ready to create base-editor
+                contentLoaded = true;
+            }
+        }, 0);
+    });
 </script>
 
-<base-editor
-    type="vertical"
-    syntax={java()}
-    theme={localStorage.getItem("icp-default-theme") || theme}
-    {code}
-    {id}
-    {downloadable}
-    save={save && id != ""}
-    webworker={null}
-    language="processing"
-    modules={{
-        "p5": p5,
-        "transformProcessing": transformProcessing,
-        "babel": babel,
-        "protect": protect
-    }}
-/>
+<!-- <slot> used to take tag content -->
+<div style="position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none;">
+    <slot />
+</div>
+
+<!-- Once the content has been loaded, create base-editor -->
+{#if contentLoaded}
+    <base-editor
+        type="vertical"
+        syntax={java()}
+        theme={localStorage.getItem("icp-default-theme") || theme}
+        code={editorContent}
+        {id}
+        {downloadable}
+        save={save && id != ""}
+        webworker={null}
+        language="processing"
+        modules={{
+            "p5": p5,
+            "transformProcessing": transformProcessing,
+            "babel": babel,
+            "protect": protect
+        }}
+    />
+{/if}
