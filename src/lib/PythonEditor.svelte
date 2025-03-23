@@ -28,40 +28,47 @@
 
   if (requestimport == "true") {
     function handleImportLanguage(event) {
-    if (event.detail.language == "python") {
+      if (event.detail.language == "python") {
         if (
-        window.confirm("You will need to import up to 21.3 MB. Is that ok?")
+          window.confirm("You will need to import up to 21.3 MB. Is that ok?")
         ) {
-        createWorker();
+          createWorker();
         }
-    }
+      }
     }
 
     window.addEventListener("importLanguage", handleImportLanguage);
   } else {
-      onMount(() => {
-        createWorker();
-      });
+    onMount(() => {
+      createWorker();
+    });
   }
 
   let editorContent = "";
   let contentLoaded = false;
+  let slotWrapper: HTMLDivElement;
 
   onMount(() => {
-      // When mounting the editor, get code in the <slot>
-      setTimeout(() => {
-          const element = document.querySelector('python-editor');
-          if (element) {
-              editorContent = element.textContent.trim();
-              // Mark content as loaded and ready to create base-editor
-              contentLoaded = true;
-          }
-      }, 0);
+    setTimeout(() => {
+      const slot = slotWrapper.querySelector("slot");
+      if (slot) {
+        const nodes = slot.assignedNodes({ flatten: true });
+        editorContent = nodes
+          .map((node) => node.textContent)
+          .join("")
+          .trim();
+        console.log("Editor content: ", editorContent);
+        contentLoaded = true;
+      }
+    }, 0);
   });
 </script>
 
 <!-- <slot> used to take tag content -->
-<div style="position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none;">
+<div
+  bind:this={slotWrapper}
+  style="position: absolute; top: 0; left: 0; width: 0; height: 0; overflow: hidden; opacity: 0; pointer-events: none;"
+>
   <slot />
 </div>
 
