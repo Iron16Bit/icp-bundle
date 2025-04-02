@@ -6,6 +6,7 @@
   export let id = "";
   export let save = false;
   export let downloadable = false;
+  export let code = "";
 
   import BaseEditor from "./BaseEditor.svelte";
   import { onMount } from "svelte";
@@ -30,9 +31,15 @@
           .map((node) => node.textContent)
           .join("")
           .trim();
-        console.log("Editor content: ", editorContent);
-        contentLoaded = true;
       }
+
+      if (editorContent.length > 0 && code.length > 0) {
+        throw new Error(
+          "Both slot content and the 'code' prop are initialized. Please provide only one."
+        );
+      }
+
+      contentLoaded = true;
     }, 0);
   });
 </script>
@@ -51,7 +58,7 @@
     syntax={StreamLanguage.define(sml)}
     {type}
     theme={localStorage.getItem("icp-default-theme") || theme}
-    code={editorContent}
+    code={contentLoaded ? editorContent || code : ""}
     {webworker}
     {id}
     {downloadable}
