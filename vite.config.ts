@@ -46,6 +46,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     esbuildOptions: {
+      target: 'esnext', // Support modern features including BigInt
       // Node.js global to browser globalThis
       define: {
         global: 'globalThis',
@@ -58,6 +59,14 @@ export default defineConfig({
         }),
         NodeModulesPolyfillPlugin(),
       ],
+    },
+  },
+  build: {
+    target: 'esnext', // Support modern features for production build
+    rollupOptions: {
+      output: {
+        format: 'es',
+      },
     },
   },
   plugins: [
