@@ -21,7 +21,7 @@ type ProviderMessage =
   | { type: "yjs-sync-response"; state: number[]; clientId: number; timestamp: number }
   | { type: "yjs-presence"; clientId: number; timestamp: number };
 
-const DEFAULT_RELAY = "/ip4/130.110.13.183/tcp/4003/ws/p2p/12D3KooWMFqYJNBLNfQGHxhqtvWWFoRYHhLBq4biTeJZZuVxfGLP";
+const DEFAULT_RELAY = "/ip4/130.110.13.183/tcp/4003/ws/p2p/12D3KooWR4avXMdUG7nUDtAvxmFqXtz4S5HvSfXRhrdP5zGrawq5";
 
 function getFallbackIceServers() {
   console.log("Using fallback ICE servers");
@@ -92,6 +92,9 @@ export class Libp2pProvider {
   private messageQueue: Uint8Array[] = [];
   private clientId: number;
   private syncInterval: NodeJS.Timeout | null = null;
+  // New: keep stable bound handlers so .off works
+  private _boundDocUpdate?: (u: Uint8Array, o: any) => void;
+  private _boundAwarenessUpdate?: (...args: any[]) => void;
 
   constructor(ydoc: Y.Doc, libp2p: Libp2p, topic: string, awareness?: Awareness) {
     this.ydoc = ydoc;
@@ -102,15 +105,18 @@ export class Libp2pProvider {
 
     console.log(`LibP2P provider created with client ID: ${this.clientId}`);
 
-    // Setup message handler
+    // Setup message handler (listener is added in start())
     this.messageHandler = (event: any) => {
       if (event.detail?.topic === this.topic) {
         this.handleMessage(event.detail);
       }
     };
+
+    // Remove stale constructor-time wiring that conflicted with start()
+    // (we now attach listeners in start() and detach in stop())
   }
 
-  static async create(ydoc: Y.Doc, topic: string, relayAddr?: string) {
+  static async create(ydoc: Y.Doc, topic: string, relayAddr?: string, awareness?: Awareness) {
     const iceServersConfig = await fetchTURNCredentials();
     console.log("TURN credentials for libp2p:", iceServersConfig);
 
@@ -119,9 +125,7 @@ export class Libp2pProvider {
         listen: ["/p2p-circuit", "/webrtc"],
       },
       transports: [
-        webSockets({
-          filter: filters.all,
-        }),
+        webSockets({ filter: filters.all }),
         webRTC({
           rtcConfiguration: {
             ...iceServersConfig,
@@ -159,10 +163,10 @@ export class Libp2pProvider {
       console.log("Connected to relay server:", connection.remoteAddr.toString());
     } catch (e) {
       console.error("Relay dial failed:", e);
-      // Don't throw - WebRTC direct connections might still work
+      // proceed anyway
     }
 
-    return new Libp2pProvider(ydoc, node, topic);
+    return new Libp2pProvider(ydoc, node, topic, awareness);
   }
 
   get hasPeers(): boolean {
@@ -229,6 +233,15 @@ export class Libp2pProvider {
     console.log("Announced presence to topic");
   }
 
+  private publish(msg: any) {
+    try {
+      const data = new TextEncoder().encode(JSON.stringify(msg));
+      this.libp2p.services.pubsub.publish(this.topic, data);
+    } catch (e) {
+      console.error("Failed to publish message", e, msg);
+    }
+  }
+
   async requestSync() {
     const message: ProviderMessage = {
       type: "yjs-sync-request",
@@ -256,8 +269,7 @@ export class Libp2pProvider {
   }
 
   async broadcastUpdate(update: Uint8Array, origin: any) {
-    if (origin === this) return; // Don't broadcast own updates
-
+    if (origin === this) return; // Don't broadcast updates that we applied from remote
     try {
       const message: ProviderMessage = {
         type: "yjs-update",
@@ -265,11 +277,10 @@ export class Libp2pProvider {
         clientId: this.clientId,
         timestamp: Date.now(),
       };
-
       await this.publishSafe(fromString(JSON.stringify(message)));
-      console.log(`Broadcasted update (${update.length} bytes)`);
+      console.log(`Broadcasted Yjs update (${update.length} bytes)`);
     } catch (error) {
-      console.error("Failed to broadcast update:", error);
+      console.error("Failed to broadcast Yjs update:", error);
     }
   }
 
@@ -362,26 +373,25 @@ export class Libp2pProvider {
   async start() {
     if (this.subscribed) return;
 
-    // Subscribe to pubsub topic
     await this.libp2p.services.pubsub.subscribe(this.topic);
     console.log(`Provider subscribed to topic: ${this.topic}`);
 
-    // Announce presence
     await this.announcePresence();
 
     // Listen for messages
     this.libp2p.services.pubsub.addEventListener("message", this.messageHandler as any);
 
     // Broadcast Yjs updates
-    this.ydoc.on("update", this.broadcastUpdate.bind(this));
+    this._boundDocUpdate = this.broadcastUpdate.bind(this);
+    this.ydoc.on("update", this._boundDocUpdate);
 
     // Broadcast awareness updates
-    this.awareness.on("update", this.broadcastAwareness.bind(this));
+    this._boundAwarenessUpdate = this.broadcastAwareness.bind(this);
+    this.awareness.on("update", this._boundAwarenessUpdate as any);
 
     // Set up periodic sync
     this.syncInterval = setInterval(() => {
       this.syncState();
-      // Log peer information
       const subscribers = this.libp2p.services.pubsub.getSubscribers(this.topic);
       console.log(`Current subscribers to ${this.topic}: ${subscribers.length}`);
       subscribers.forEach((peer) => console.log(`- Peer: ${peer.toString()}`));
@@ -390,16 +400,10 @@ export class Libp2pProvider {
     // Handle subscription changes
     this.libp2p.services.pubsub.addEventListener("subscription-change", ((event: CustomEvent) => {
       const { peerId, subscriptions } = event.detail;
-      
-      // Check if peer subscribed to our editing topic
-      const sub = subscriptions.find(
-        (s) => s.topic === this.topic && s.subscribe === true
-      );
-
+      const sub = subscriptions.find((s) => s.topic === this.topic && s.subscribe === true);
       if (sub) {
         console.log(`Peer ${peerId} subscribed to our editor topic - sending sync request`);
         this.requestSync();
-        // Now that at least one peer is here, flush queued messages
         this.flushQueue();
       }
     }) as any);
@@ -407,7 +411,6 @@ export class Libp2pProvider {
     this.connected = true;
     this.subscribed = true;
 
-    // Request initial sync
     setTimeout(() => {
       this.requestSync();
       const subscribers = this.libp2p.services.pubsub.getSubscribers(this.topic);
@@ -424,8 +427,8 @@ export class Libp2pProvider {
       this.syncInterval = null;
     }
 
-    this.ydoc.off("update", this.broadcastUpdate.bind(this));
-    this.awareness.off("update", this.broadcastAwareness.bind(this));
+    if (this._boundDocUpdate) this.ydoc.off("update", this._boundDocUpdate);
+    if (this._boundAwarenessUpdate) this.awareness.off("update", this._boundAwarenessUpdate as any);
 
     this.libp2p.services.pubsub.removeEventListener("message", this.messageHandler as any);
 
@@ -441,5 +444,21 @@ export class Libp2pProvider {
     } catch (e) {
       console.error("Error stopping libp2p:", e);
     }
+  }
+
+  // Helpers used by session.ts
+  getPeerNames(): string[] {
+    const peers: string[] = [];
+    this.awareness.getStates().forEach((state, id) => {
+      if (id !== this.awareness.clientID) {
+        const name = state?.user?.name || `Peer-${id}`;
+        peers.push(name);
+      }
+    });
+    return peers;
+  }
+
+  getLibp2p() {
+    return this.libp2p;
   }
 }
