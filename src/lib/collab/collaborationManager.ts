@@ -77,5 +77,4 @@ export class CollaborationManager {
   }
 }
 
-// Singleton instance
 export const collaborationManager = new CollaborationManager();

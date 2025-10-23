@@ -13,6 +13,7 @@ import { circuitRelayTransport } from "@libp2p/circuit-relay-v2";
 import { dcutr } from "@libp2p/dcutr";
 import { identify } from "@libp2p/identify";
 import { multiaddr } from "@multiformats/multiaddr";
+import { DEFAULT_RELAY } from "./constants";
 
 type ProviderMessage =
   | { type: "yjs-update"; update: number[]; clientId: number; timestamp: number }
@@ -20,8 +21,6 @@ type ProviderMessage =
   | { type: "yjs-sync-request"; clientId: number; timestamp: number }
   | { type: "yjs-sync-response"; state: number[]; clientId: number; timestamp: number }
   | { type: "yjs-presence"; clientId: number; timestamp: number };
-
-const DEFAULT_RELAY = "/ip4/130.110.13.183/tcp/4003/ws/p2p/12D3KooWR4avXMdUG7nUDtAvxmFqXtz4S5HvSfXRhrdP5zGrawq5";
 
 function getFallbackIceServers() {
   console.log("Using fallback ICE servers");
@@ -92,28 +91,26 @@ export class Libp2pProvider {
   private messageQueue: Uint8Array[] = [];
   private clientId: number;
   private syncInterval: NodeJS.Timeout | null = null;
-  // New: keep stable bound handlers so .off works
   private _boundDocUpdate?: (u: Uint8Array, o: any) => void;
   private _boundAwarenessUpdate?: (...args: any[]) => void;
+  private ownsLibp2p: boolean;
 
-  constructor(ydoc: Y.Doc, libp2p: Libp2p, topic: string, awareness?: Awareness) {
+  constructor(ydoc: Y.Doc, libp2p: Libp2p, topic: string, awareness?: Awareness, ownsLibp2p = false) {
     this.ydoc = ydoc;
     this.libp2p = libp2p;
     this.topic = topic;
     this.awareness = awareness || new Awareness(ydoc);
     this.clientId = Math.floor(Math.random() * 100000000);
+    this.ownsLibp2p = ownsLibp2p;
 
     console.log(`LibP2P provider created with client ID: ${this.clientId}`);
 
-    // Setup message handler (listener is added in start())
+    // Setup message handler
     this.messageHandler = (event: any) => {
       if (event.detail?.topic === this.topic) {
         this.handleMessage(event.detail);
       }
     };
-
-    // Remove stale constructor-time wiring that conflicted with start()
-    // (we now attach listeners in start() and detach in stop())
   }
 
   static async create(ydoc: Y.Doc, topic: string, relayAddr?: string, awareness?: Awareness) {
@@ -163,10 +160,9 @@ export class Libp2pProvider {
       console.log("Connected to relay server:", connection.remoteAddr.toString());
     } catch (e) {
       console.error("Relay dial failed:", e);
-      // proceed anyway
     }
 
-    return new Libp2pProvider(ydoc, node, topic, awareness);
+    return new Libp2pProvider(ydoc, node, topic, awareness, true);
   }
 
   get hasPeers(): boolean {
@@ -440,7 +436,9 @@ export class Libp2pProvider {
   async destroy() {
     await this.stop();
     try {
-      await this.libp2p.stop();
+      if (this.ownsLibp2p) {
+        await this.libp2p.stop();
+      }
     } catch (e) {
       console.error("Error stopping libp2p:", e);
     }
