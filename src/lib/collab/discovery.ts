@@ -20,7 +20,7 @@ export class DiscoveryClient {
         const { subscriptions } = ev.detail ?? {};
         const sub = subscriptions?.find((s: any) => s.topic === this.topic && s.subscribe === true);
         if (sub) {
-        this.flushQueue();t
+        this.flushQueue();
         this.announcePresence().catch(() => {});
         }
     };

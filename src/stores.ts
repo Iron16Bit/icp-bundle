@@ -1,4 +1,4 @@
-import { writable, Writable } from "svelte/store";
+import { writable } from "svelte/store";
 
 /**
  * Whether the theme should be set to dark or not
@@ -18,3 +18,5 @@ import { writable, Writable } from "svelte/store";
  * @type {Writable<string>}
  */
 export const icpDefaultTheme: Writable<string> = writable(localStorage.getItem("icpDefaultTheme") || null);
+
+export const activeCollaboration = writable<string | null>(null); // topic or editor id

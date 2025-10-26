@@ -168,7 +168,6 @@ li:not(:last-child) {
     overflow: hidden !important;
 }
 
-
 @media screen and (max-width: 1000px) {
     .reveal .controls {
         bottom: 60px;
