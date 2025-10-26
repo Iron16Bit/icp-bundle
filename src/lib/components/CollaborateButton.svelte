@@ -288,20 +288,21 @@
     on:click={() => (showPanel = false)}
   >
     <div
-      style="
-        position: absolute; 
+      class="collab-modal"
+      data-theme={theme}
+      style="position: absolute; 
         top: 50%; 
         left: 50%; 
         transform: translate(-50%, -50%);
-        background: ${theme === 'dark' ? '#23272b' : '#fff'};
-        color: ${theme === 'dark' ? '#fff' : '#222'};
         padding: 22px 28px; 
         border-radius: 14px; 
         font-size: 14px;
         min-width: 260px;
         box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-        border: 1px solid ${theme === 'dark' ? '#444' : '#eee'};
-      "
+        border: 1px solid #eee;
+        background-color: {theme === 'dark' ? '#333' : '#fff'}; 
+        color: {theme === 'dark' ? '#fff' : '#222'}; 
+        border-color: {theme === 'dark' ? '#444' : '#eee'};"
       on:click|stopPropagation
     >
       <div style="font-weight: bold; margin-bottom: 6px;">Discovery</div>
@@ -383,3 +384,16 @@
     </div>
   </div>
 {/if}
+
+<style>
+  :global(.collab-modal[data-theme="dark"]) {
+    background-color: #23272b !important;
+    color: #fff !important;
+    border-color: #444 !important;
+  }
+  :global(.collab-modal[data-theme="light"]) {
+    background-color: #fff !important;
+    color: #222 !important;
+    border-color: #eee !important;
+  }
+</style>
