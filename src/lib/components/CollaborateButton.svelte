@@ -179,10 +179,10 @@
 
   async function startSession(topic: string) {
     if (!editor) return;
-    if (get(activeCollaboration)) {
-      alert("Another collaboration is already active in a different editor.");
-      return;
-    }
+    // if (get(activeCollaboration)) {
+    //   alert("Another collaboration is already active in a different editor.");
+    //   return;
+    // }
     const node = await getSharedLibp2p();
     const color = generateRandomColor();
     collabSession = await startCollaborativeSessionWithNode({
@@ -212,6 +212,10 @@
   }
 
   async function togglePanel() {
+    if (get(activeCollaboration)) {
+      alert("Another collaboration is already active in a different editor.");
+      return;
+    }
     showPanel = !showPanel;
     if (showPanel) {
       await ensureDiscovery();
@@ -219,10 +223,10 @@
   }
 
   async function toggleCollaboration() {
-    if (get(activeCollaboration)) {
-      alert("Another collaboration is already active in a different editor.");
-      return;
-    }
+    // if (get(activeCollaboration)) {
+    //   alert("Another collaboration is already active in a different editor.");
+    //   return;
+    // }
     await togglePanel();
   }
 
@@ -282,7 +286,7 @@
 </button>
 
 {#if showPanel}
-  <!-- Modal overlay for peer discovery (no background overlay) -->
+  <!-- Modal overlay for peer discovery -->
   <div
     style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999;"
     on:click={() => (showPanel = false)}
