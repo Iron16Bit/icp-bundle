@@ -167,22 +167,22 @@
     await ensureDiscovery();
     const topic = secretTopic();
     await discovery!.invite(peerId, topic);
-    await startSession(topic);
-    showPanel = false; // Close pop-up after connecting
+    await startSession(topic, true); // initiator
+    showPanel = false;
   }
 
   async function acceptInvite(inviteIdx: number) {
     const invite = invites[inviteIdx];
     invites.splice(inviteIdx, 1);
-    await startSession(invite.topic);
-    showPanel = false; // Close pop-up after accepting invite
+    await startSession(invite.topic, false); // not initiator
+    showPanel = false;
   }
 
   async function declineInvite(inviteIdx: number) {
     invites.splice(inviteIdx, 1);
   }
 
-  async function startSession(topic: string) {
+  async function startSession(topic: string, isInitiator: boolean) {
     if (!editor) return;
     const node = await getSharedLibp2p();
     const color = generateRandomColor();
@@ -196,10 +196,11 @@
       onPeersChanged: (names) => (peerCount = names.length),
       onStatus: () => {},
       node,
+      isInitiator,
     });
     isCollaborating = true;
     sessionTopic = topic;
-    activeCollaboration.set(topic); // Mark as active
+    activeCollaboration.set(topic);
     dispatch("collaborationStarted", { topic });
   }
 

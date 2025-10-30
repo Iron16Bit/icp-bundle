@@ -131,8 +131,18 @@ export async function startCollaborativeSessionWithNode(
   onStatus?.("Connected");
 
   const initialContent = editor.state.doc.toString();
-  if (initialContent.length > 0) {
-    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
+  if (isInitiator) {
+    // Initiator peer: share your editor content
+    ydoc.transact(() => {
+      if (ytext.length === 0 && initialContent.length > 0) {
+        ytext.insert(0, initialContent);
+      }
+    }, "seed");
+  } else {
+    // Joining peer: clear editor and wait for sync
+    if (initialContent.length > 0) {
+      editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
+    }
   }
 
   const undoManager = new Y.UndoManager(ytext);
@@ -140,16 +150,6 @@ export async function startCollaborativeSessionWithNode(
   editor.dispatch({
     effects: StateEffect.appendConfig.of([compartment.of([yCollab(ytext, awareness, { undoManager })])]),
   });
-
-  // Only the initiator seeds the content immediately
-  //TODO FIX
-  if (isInitiator && initialContent.length > 0) {
-    ydoc.transact(() => {
-      if (ytext.length === 0) {
-        ytext.insert(0, initialContent);
-      }
-    }, "seed");
-  }
 
   return {
     end: async () => {
