@@ -38,6 +38,11 @@
   let collabSession: CollabSession | null = null;
   let userName: string | null = null;
 
+  let showAlert = false;
+
+  /**
+   * FUNCTIONS
+   */
   const dispatch = createEventDispatcher();
 
   function generateRandomColor() {
@@ -179,10 +184,6 @@
 
   async function startSession(topic: string) {
     if (!editor) return;
-    // if (get(activeCollaboration)) {
-    //   alert("Another collaboration is already active in a different editor.");
-    //   return;
-    // }
     const node = await getSharedLibp2p();
     const color = generateRandomColor();
     collabSession = await startCollaborativeSessionWithNode({
@@ -212,8 +213,8 @@
   }
 
   async function togglePanel() {
-    if (get(activeCollaboration)) {
-      alert("Another collaboration is already active in a different editor.");
+    if (get(activeCollaboration) && get(activeCollaboration) !== sessionTopic) {
+      showAlert = true;
       return;
     }
     showPanel = !showPanel;
@@ -223,10 +224,6 @@
   }
 
   async function toggleCollaboration() {
-    // if (get(activeCollaboration)) {
-    //   alert("Another collaboration is already active in a different editor.");
-    //   return;
-    // }
     await togglePanel();
   }
 
@@ -389,6 +386,15 @@
   </div>
 {/if}
 
+{#if showAlert}
+  <div class="custom-alert-overlay" on:click={() => (showAlert = false)}>
+    <div class="custom-alert" data-theme={theme} on:click|stopPropagation>
+      <p>Another collaboration is already active in a different editor.</p>
+      <button on:click={() => (showAlert = false)}>OK</button>
+    </div>
+  </div>
+{/if}
+
 <style>
   :global(.collab-modal[data-theme="dark"]) {
     background-color: #23272b !important;
@@ -399,5 +405,59 @@
     background-color: #fff !important;
     color: #222 !important;
     border-color: #eee !important;
+  }
+
+  .custom-alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+
+  .custom-alert[data-theme="dark"] {
+    background: #333;
+    color: #fff;
+    border: 1px solid #444;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .custom-alert[data-theme="light"] {
+    background: #fff;
+    color: #333;
+    border: 1px solid #eee;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .custom-alert {
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    max-width: 300px;
+    width: 90%;
+  }
+
+  .custom-alert p {
+    margin: 0 0 10px;
+    font-size: 16px;
+  }
+
+  .custom-alert button {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .custom-alert button:hover {
+    background: #45a049;
   }
 </style>
