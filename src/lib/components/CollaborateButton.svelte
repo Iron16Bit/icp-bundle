@@ -202,6 +202,16 @@
     sessionTopic = topic;
     activeCollaboration.set(topic);
     dispatch("collaborationStarted", { topic });
+
+    // Stop announcing presence on the discovery topic so other peers no longer see us
+    try {
+      await discovery?.stop();
+    } catch (e) {
+      console.warn("Error stopping discovery:", e);
+    }
+    // Clear local UI lists
+    discoveredPeers = [];
+    invites = [];
   }
 
   async function leaveSession() {
@@ -211,6 +221,13 @@
     sessionTopic = null;
     peerCount = 0;
     activeCollaboration.set(null); // Clear active session
+
+    // Re-join discovery so we become visible again to others
+    try {
+      await ensureDiscovery();
+    } catch (e) {
+      console.warn("Error restarting discovery:", e);
+    }
   }
 
   async function togglePanel() {
@@ -269,17 +286,6 @@
         d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
       />
     </svg>
-    {#if isCollaborating ? peerCount > 0 : discoveredPeers.length > 0}
-      <span
-        style="position: absolute; top: -7px; right: -7px; background-color: ${isCollaborating
-          ? '#4CAF50'
-          : '#ff4081'}; color: white; border-radius: 50%; width: 18px; height: 18px;
-        display: flex; justify-content: center; align-items: center;
-        font-size: 11px; font-weight: bold; box-shadow: 0 0 6px rgba(76,175,80,0.5);"
-      >
-        {isCollaborating ? peerCount : discoveredPeers.length}
-      </span>
-    {/if}
   </div>
 </button>
 

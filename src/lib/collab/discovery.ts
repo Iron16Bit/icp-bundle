@@ -3,7 +3,8 @@ import { fromString, toString } from "uint8arrays";
 
 type DiscoMsg =
     | { type: "disco-presence"; id: string; name: string }
-    | { type: "disco-invite"; to: string; from: string; topic: string; name: string };
+    | { type: "disco-invite"; to: string; from: string; topic: string; name: string }
+    | { type: "disco-left"; id: string };
 
 export class DiscoveryClient {
     private topic: string;
@@ -41,6 +42,12 @@ export class DiscoveryClient {
         } else if (msg.type === "disco-invite") {
             if (msg.to !== this.id) return;
             this.onInviteCb({ id: msg.from, name: msg.name }, msg.topic);
+        } else if (msg.type === "disco-left") {
+            // Remove peer who explicitly left discovery
+            if (msg.id && this.peers.has(msg.id)) {
+                this.peers.delete(msg.id);
+                this.onPeersCb(this.getPeers());
+            }
         }
         } catch {}
     };
@@ -64,14 +71,27 @@ export class DiscoveryClient {
         this.presenceTimer = setInterval(() => this.announcePresence().catch(() => {}), 5000);
     }
 
-    stop() {
+    // Stop discovery and announce we are leaving so other peers remove us
+    async stop() {
         if (!this.node) return;
         clearInterval(this.presenceTimer);
+        try {
+            // best-effort announce that we're leaving the discovery topic
+            await this.publishSafe({ type: "disco-left", id: this.id });
+        } catch (e) {
+            // ignore
+        }
         this.node.services.pubsub.removeEventListener("message", this.onMessage);
         this.node.services.pubsub.removeEventListener("subscription-change", this.onSubChange);
-        this.node.services.pubsub.unsubscribe(this.topic);
+        try {
+            await this.node.services.pubsub.unsubscribe(this.topic);
+        } catch (e) {
+            // ignore unsubscribe errors
+        }
         this.queue = [];
         this.peers.clear();
+        // notify UI if needed
+        this.onPeersCb(this.getPeers());
     }
 
     getPeers() {
