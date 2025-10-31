@@ -97,7 +97,8 @@ export async function startCollaborativeSession(opts: StartOpts): Promise<Collab
 
   return {
     end: async () => {
-      editor.dispatch({ effects: StateEffect.reconfigure.of([]) });
+      // remove only the compartment we used for yCollab so other editor extensions stay intact
+      editor.dispatch({ effects: compartment.reconfigure([]) });
       ydoc.off("update", onYUpdate);
       await provider?.destroy?.();
       undoManager.destroy();
@@ -153,7 +154,8 @@ export async function startCollaborativeSessionWithNode(
 
   return {
     end: async () => {
-      editor.dispatch({ effects: StateEffect.reconfigure.of([]) });
+      // remove only the compartment we used for yCollab so other editor extensions stay intact
+      editor.dispatch({ effects: compartment.reconfigure([]) });
       ydoc.off("update", onYUpdate);
       await provider?.destroy?.();
       undoManager.destroy();
