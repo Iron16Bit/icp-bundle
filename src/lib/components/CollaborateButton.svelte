@@ -114,6 +114,13 @@
     return `${a}-${b}`;
   }
 
+  function formatUserName(name: string) {
+    return name
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
   function slugify(s: string) {
     return s
       .toLowerCase()
@@ -264,129 +271,188 @@
 <button
   bind:this={collaborateButtonContainer}
   on:click={toggleCollaboration}
+  class="collaborate-btn"
+  class:active={isCollaborating}
+  data-theme={theme}
   style={`position: absolute; right: ${
     type == "vertical"
       ? "calc(var(--output-height) + min(0.5vw, 1vh))"
       : "min(0.5vw, 1vh)"
-  }; top: calc(min(2.5vw, 5vh) + min(2vw, 4vh) + min(1vw, 2vh)); width: min(1.7vw, 3.4vh); height: min(1.7vw, 3.4vh); border: 0px; border-radius: 0.4em; display: flex; justify-content: center; align-items: center; z-index: 99; background-color: transparent; box-shadow: ${
-    isCollaborating
-      ? "0 0 0 4px #4CAF50, 0 2px 8px rgba(0,0,0,0.12)"
-      : "0 2px 8px rgba(0,0,0,0.12)"
-  }; cursor: pointer; transition: box-shadow 0.2s; padding: min(0.25vw, 0.5vh);`}
+  }; top: calc(min(2.5vw, 5vh) + min(2vw, 4vh) + min(1vw, 2vh));`}
 >
-  <div style="position: relative; width: 100%; height: 100%;">
-    <svg
-      style="height: 100%; width: 100%; cursor: pointer;"
-      fill={theme == "dark" ? "white" : "black"}
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      on:click|stopPropagation={togglePanel}
-    >
-      <path
-        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-      />
-    </svg>
-  </div>
+  <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+    />
+  </svg>
+  {#if isCollaborating && peerCount > 0}
+    <span class="badge">{peerCount}</span>
+  {/if}
 </button>
 
 {#if showPanel}
   <!-- Modal overlay for peer discovery -->
-  <div
-    style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999;"
-    on:click={() => (showPanel = false)}
-  >
-    <div
-      class="collab-modal"
-      data-theme={theme}
-      style="position: absolute; 
-        top: 50%; 
-        left: 50%; 
-        transform: translate(-50%, -50%);
-        padding: 22px 28px; 
-        border-radius: 14px; 
-        font-size: 14px;
-        min-width: 260px;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-        border: 1px solid #eee;
-        background-color: {theme === 'dark' ? '#333' : '#fff'}; 
-        color: {theme === 'dark' ? '#fff' : '#222'}; 
-        border-color: {theme === 'dark' ? '#444' : '#eee'};"
-      on:click|stopPropagation
-    >
-      <div style="font-weight: bold; margin-bottom: 6px;">Discovery</div>
-      <div style="margin-bottom: 8px;">
-        You are: {userName ?? "Anonymous"}
-        {#if !discovery}<button
-            on:click={ensureDiscovery}
-            style="margin-left:8px;">Join</button
-          >{/if}
+  <div class="modal-overlay" on:click={() => (showPanel = false)}>
+    <div class="collab-modal" data-theme={theme} on:click|stopPropagation>
+      <!-- Header -->
+      <div class="modal-header">
+        <h3>Collaboration</h3>
+        <button class="close-btn" on:click={() => (showPanel = false)}>
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              fill="currentColor"
+              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+            />
+          </svg>
+        </button>
       </div>
 
-      <div
-        style="max-height: 160px; overflow: auto; border-top: 1px solid ${theme ==
-        'dark'
-          ? '#333'
-          : '#ddd'}; padding-top: 6px;"
-      >
-        {#if discoveredPeers.length === 0}
-          <div style="opacity: 0.7;">No peers online</div>
-        {:else}
-          {#each discoveredPeers as p}
-            <div
-              style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;"
-            >
-              <span
-                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;"
-                >{p.name}</span
-              >
-              <button
-                on:click={() => connectToPeer(p.id)}
-                style="font-size: 11px;">Connect</button
-              >
-            </div>
-          {/each}
+      <!-- User identity -->
+      <div class="user-identity">
+        <div class="user-avatar">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              fill="currentColor"
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+            />
+          </svg>
+        </div>
+        <div class="user-info">
+          <div class="user-label">You are</div>
+          <div class="user-name">{formatUserName(userName ?? "Anonymous")}</div>
+        </div>
+        {#if !discovery}
+          <button class="btn-primary" on:click={ensureDiscovery}
+            >Join Discovery</button
+          >
         {/if}
       </div>
 
-      {#if invites.length > 0}
-        <div
-          style="margin-top: 8px; border-top: 1px solid ${theme == 'dark'
-            ? '#333'
-            : '#ddd'}; padding-top: 6px;"
-        >
-          <div style="font-weight: bold; margin-bottom: 4px;">Invitations</div>
-          {#each invites as inv, i}
-            <div
-              style="display:flex; align-items:center; justify-content: space-between; margin-bottom: 4px;"
-            >
-              <span>From {inv.from.name}</span>
-              <div>
-                <button
-                  on:click={() => acceptInvite(i)}
-                  style="margin-right:4px; font-size: 11px;">Accept</button
-                >
-                <button
-                  on:click={() => declineInvite(i)}
-                  style="font-size: 11px;">Decline</button
-                >
+      <!-- Available peers -->
+      {#if !isCollaborating}
+        <div class="section">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path
+                fill="currentColor"
+                d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+              />
+            </svg>
+            Available Peers
+          </div>
+          <div class="peers-list">
+            {#if discoveredPeers.length === 0}
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" width="32" height="32">
+                  <path
+                    fill="currentColor"
+                    opacity="0.3"
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+                  />
+                </svg>
+                <div>No peers online</div>
               </div>
-            </div>
-          {/each}
+            {:else}
+              {#each discoveredPeers as p}
+                <div class="peer-item">
+                  <div class="peer-avatar">
+                    {formatUserName(p.name)
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")}
+                  </div>
+                  <div class="peer-name">{formatUserName(p.name)}</div>
+                  <button
+                    class="btn-secondary"
+                    on:click={() => connectToPeer(p.id)}
+                  >
+                    Connect
+                  </button>
+                </div>
+              {/each}
+            {/if}
+          </div>
         </div>
       {/if}
 
-      {#if isCollaborating && sessionTopic}
-        <div
-          style="margin-top: 8px; border-top: 1px solid ${theme == 'dark'
-            ? '#333'
-            : '#ddd'}; padding-top: 6px;"
-        >
-          <div>Session: {sessionTopic}</div>
-          <div style="margin-top: 6px;">
-            <button on:click={leaveSession} style="font-size: 11px;"
-              >Leave session</button
-            >
+      <!-- Invitations -->
+      {#if invites.length > 0}
+        <div class="section">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path
+                fill="currentColor"
+                d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
+              />
+            </svg>
+            Invitations
           </div>
+          <div class="invites-list">
+            {#each invites as inv, i}
+              <div class="invite-item">
+                <div class="invite-info">
+                  <div class="invite-from">
+                    From {formatUserName(inv.from.name)}
+                  </div>
+                  <div class="invite-topic">{inv.topic}</div>
+                </div>
+                <div class="invite-actions">
+                  <button class="btn-accept" on:click={() => acceptInvite(i)}>
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                      <path
+                        fill="currentColor"
+                        d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                      />
+                    </svg>
+                    Accept
+                  </button>
+                  <button class="btn-decline" on:click={() => declineInvite(i)}>
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                      <path
+                        fill="currentColor"
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                      />
+                    </svg>
+                    Decline
+                  </button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Active session -->
+      {#if isCollaborating && sessionTopic}
+        <div class="section active-session">
+          <div class="section-title">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path
+                fill="currentColor"
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+              />
+            </svg>
+            Active Session
+          </div>
+          <div class="session-info">
+            <div class="session-detail">
+              <span class="detail-label">Session ID:</span>
+              <span class="detail-value">{sessionTopic.slice(0, 20)}...</span>
+            </div>
+            <div class="session-detail">
+              <span class="detail-label">Connected Peers:</span>
+              <span class="detail-value">{peerCount}</span>
+            </div>
+          </div>
+          <button class="btn-danger" on:click={leaveSession}>
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path
+                fill="currentColor"
+                d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
+              />
+            </svg>
+            Leave Session
+          </button>
         </div>
       {/if}
     </div>
@@ -394,77 +460,612 @@
 {/if}
 
 {#if showAlert}
-  <div class="custom-alert-overlay" on:click={() => (showAlert = false)}>
-    <div class="custom-alert" data-theme={theme} on:click|stopPropagation>
-      <p>Another collaboration is already active in a different editor.</p>
-      <button on:click={() => (showAlert = false)}>OK</button>
+  <div class="modal-overlay" on:click={() => (showAlert = false)}>
+    <div class="alert-modal" data-theme={theme} on:click|stopPropagation>
+      <svg viewBox="0 0 24 24" width="48" height="48" class="alert-icon">
+        <path
+          fill="currentColor"
+          d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"
+        />
+      </svg>
+      <h3>Active Collaboration</h3>
+      <p>
+        Another collaboration is already active in a different editor. Please
+        end that session first.
+      </p>
+      <button class="btn-primary" on:click={() => (showAlert = false)}
+        >OK</button
+      >
     </div>
   </div>
 {/if}
 
 <style>
-  :global(.collab-modal[data-theme="dark"]) {
-    background-color: #23272b !important;
-    color: #fff !important;
-    border-color: #444 !important;
-  }
-  :global(.collab-modal[data-theme="light"]) {
-    background-color: #fff !important;
-    color: #222 !important;
-    border-color: #eee !important;
+  /* Collaborate Button */
+  .collaborate-btn {
+    position: relative;
+    width: min(1.8vw, 3.6vh);
+    height: min(1.8vw, 3.6vh);
+    border: none;
+    border-radius: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    background: transparent;
   }
 
-  .custom-alert-overlay {
+  .collaborate-btn[data-theme="dark"] {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .collaborate-btn[data-theme="light"] {
+    background: rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .collaborate-btn:hover {
+    transform: translateY(-1px);
+  }
+
+  .collaborate-btn[data-theme="dark"]:hover {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .collaborate-btn[data-theme="light"]:hover {
+    background: rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .collaborate-btn.active {
+    background: #4caf50 !important;
+    box-shadow:
+      0 0 0 3px rgba(76, 175, 80, 0.3),
+      0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .collaborate-btn .icon {
+    width: 65%;
+    height: 65%;
+  }
+
+  .collaborate-btn[data-theme="dark"] .icon {
+    fill: white;
+  }
+
+  .collaborate-btn[data-theme="light"] .icon {
+    fill: #333;
+  }
+
+  .collaborate-btn.active .icon {
+    fill: white !important;
+  }
+
+  .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #f44336;
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Modal Overlay */
+  .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 9999;
+    animation: fadeIn 0.2s ease;
   }
 
-  .custom-alert[data-theme="dark"] {
-    background: #333;
-    color: #fff;
-    border: 1px solid #444;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
-  .custom-alert[data-theme="light"] {
-    background: #fff;
-    color: #333;
-    border: 1px solid #eee;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  }
-
-  .custom-alert {
-    padding: 20px;
-    border-radius: 8px;
-    text-align: center;
-    max-width: 300px;
-    width: 90%;
-  }
-
-  .custom-alert p {
-    margin: 0 0 10px;
-    font-size: 16px;
-  }
-
-  .custom-alert button {
-    background: #4caf50;
-    color: #fff;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
+  /* Collaboration Modal */
+  .collab-modal {
+    position: relative;
+    padding: 0;
+    border-radius: 12px;
     font-size: 14px;
+    min-width: 400px;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    animation: slideUp 0.3s ease;
   }
 
-  .custom-alert button:hover {
+  @keyframes slideUp {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .collab-modal[data-theme="dark"] {
+    background: #2a2e33;
+    color: #e4e6eb;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .collab-modal[data-theme="light"] {
+    background: #ffffff;
+    color: #1c1e21;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Modal Header */
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid;
+  }
+
+  .collab-modal[data-theme="dark"] .modal-header {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .collab-modal[data-theme="light"] .modal-header {
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .collab-modal[data-theme="dark"] .close-btn {
+    color: #b0b3b8;
+  }
+
+  .collab-modal[data-theme="light"] .close-btn {
+    color: #65676b;
+  }
+
+  .collab-modal[data-theme="dark"] .close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .collab-modal[data-theme="light"] .close-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  /* User Identity */
+  .user-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    border-bottom: 1px solid;
+  }
+
+  .collab-modal[data-theme="dark"] .user-identity {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .collab-modal[data-theme="light"] .user-identity {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .collab-modal[data-theme="dark"] .user-avatar {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4caf50;
+  }
+
+  .collab-modal[data-theme="light"] .user-avatar {
+    background: rgba(76, 175, 80, 0.15);
+    color: #2e7d32;
+  }
+
+  .user-info {
+    flex: 1;
+  }
+
+  .user-label {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+
+  .user-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  /* Section */
+  .section {
+    padding: 20px 24px;
+    border-bottom: 1px solid;
+  }
+
+  .collab-modal[data-theme="dark"] .section {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .collab-modal[data-theme="light"] .section {
+    border-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .section:last-child {
+    border-bottom: none;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
+  }
+
+  /* Peers List */
+  .peers-list {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    opacity: 0.5;
+    gap: 12px;
+  }
+
+  .empty-state div {
+    font-size: 13px;
+  }
+
+  .peer-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: background 0.2s;
+  }
+
+  .collab-modal[data-theme="dark"] .peer-item {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .collab-modal[data-theme="light"] .peer-item {
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  .collab-modal[data-theme="dark"] .peer-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .collab-modal[data-theme="light"] .peer-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  .peer-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .collab-modal[data-theme="dark"] .peer-avatar {
+    background: rgba(66, 165, 245, 0.2);
+    color: #42a5f5;
+  }
+
+  .collab-modal[data-theme="light"] .peer-avatar {
+    background: rgba(66, 165, 245, 0.15);
+    color: #1976d2;
+  }
+
+  .peer-name {
+    flex: 1;
+    font-weight: 500;
+  }
+
+  /* Invites List */
+  .invites-list {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .invite-item {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .collab-modal[data-theme="dark"] .invite-item {
+    background: rgba(255, 165, 0, 0.1);
+    border: 1px solid rgba(255, 165, 0, 0.2);
+  }
+
+  .collab-modal[data-theme="light"] .invite-item {
+    background: rgba(255, 165, 0, 0.05);
+    border: 1px solid rgba(255, 165, 0, 0.15);
+  }
+
+  .invite-info {
+    flex: 1;
+  }
+
+  .invite-from {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .invite-topic {
+    font-size: 12px;
+    opacity: 0.7;
+    font-family: monospace;
+  }
+
+  .invite-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  /* Active Session */
+  .active-session {
+    background: rgba(76, 175, 80, 0.05);
+  }
+
+  .session-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .session-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .detail-label {
+    font-size: 13px;
+    opacity: 0.7;
+  }
+
+  .detail-value {
+    font-weight: 600;
+    font-family: monospace;
+    font-size: 13px;
+  }
+
+  /* Buttons */
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn-primary {
+    padding: 8px 16px;
+    background: #4caf50;
+    color: white;
+  }
+
+  .btn-primary:hover {
     background: #45a049;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  }
+
+  .btn-secondary {
+    padding: 6px 12px;
+  }
+
+  .collab-modal[data-theme="dark"] .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e4e6eb;
+  }
+
+  .collab-modal[data-theme="light"] .btn-secondary {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1c1e21;
+  }
+
+  .collab-modal[data-theme="dark"] .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .collab-modal[data-theme="light"] .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-accept {
+    padding: 6px 12px;
+    background: #4caf50;
+    color: white;
+  }
+
+  .btn-accept:hover {
+    background: #45a049;
+  }
+
+  .btn-decline {
+    padding: 6px 12px;
+  }
+
+  .collab-modal[data-theme="dark"] .btn-decline {
+    background: rgba(244, 67, 54, 0.15);
+    color: #ef5350;
+  }
+
+  .collab-modal[data-theme="light"] .btn-decline {
+    background: rgba(244, 67, 54, 0.1);
+    color: #d32f2f;
+  }
+
+  .collab-modal[data-theme="dark"] .btn-decline:hover {
+    background: rgba(244, 67, 54, 0.25);
+  }
+
+  .collab-modal[data-theme="light"] .btn-decline:hover {
+    background: rgba(244, 67, 54, 0.15);
+  }
+
+  .btn-danger {
+    padding: 10px 16px;
+    background: #f44336;
+    color: white;
+    width: 100%;
+  }
+
+  .btn-danger:hover {
+    background: #d32f2f;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3);
+  }
+
+  /* Alert Modal */
+  .alert-modal {
+    padding: 32px;
+    border-radius: 12px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    animation: slideUp 0.3s ease;
+  }
+
+  .alert-modal[data-theme="dark"] {
+    background: #2a2e33;
+    color: #e4e6eb;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .alert-modal[data-theme="light"] {
+    background: #ffffff;
+    color: #1c1e21;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  }
+
+  .alert-icon {
+    color: #ff9800;
+    margin-bottom: 16px;
+  }
+
+  .alert-modal h3 {
+    margin: 0 0 12px 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .alert-modal p {
+    margin: 0 0 24px 0;
+    opacity: 0.8;
+    line-height: 1.5;
+  }
+
+  /* Scrollbar */
+  .peers-list::-webkit-scrollbar,
+  .invites-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .peers-list::-webkit-scrollbar-track,
+  .invites-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .collab-modal[data-theme="dark"] .peers-list::-webkit-scrollbar-thumb,
+  .collab-modal[data-theme="dark"] .invites-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+  }
+
+  .collab-modal[data-theme="light"] .peers-list::-webkit-scrollbar-thumb,
+  .collab-modal[data-theme="light"] .invites-list::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+
+  @media screen and (max-width: 768px) {
+    .collab-modal {
+      min-width: 90vw;
+      max-width: 90vw;
+    }
   }
 </style>
