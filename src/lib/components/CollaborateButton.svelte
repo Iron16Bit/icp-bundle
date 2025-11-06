@@ -149,11 +149,25 @@
   }
 
   async function ensureDiscovery() {
-    if (discovery) return;
+    // If discovery exists but was stopped, clear it first
+    if (discovery) {
+      // Check if it's actually running by trying to get peers
+      try {
+        const peers = discovery.getPeers();
+        if (peers !== undefined) {
+          return; // Discovery is running, nothing to do
+        }
+      } catch (e) {
+        discovery = null;
+      }
+    }
+
     if (!userName) {
       userName = generateUserName();
     }
     const discoTopic = getDiscoveryTopic();
+
+    // Create a fresh discovery instance
     discovery = new DiscoveryClient(discoTopic);
     await discovery.start(
       userName!,
@@ -161,7 +175,13 @@
         discoveredPeers = peers;
       },
       (from, topic) => {
-        invites = [{ from, topic }, ...invites];
+        // Check if invite already exists to prevent duplicates
+        const exists = invites.some(
+          (inv) => inv.from.id === from.id && inv.topic === topic
+        );
+        if (!exists) {
+          invites = [{ from, topic }, ...invites];
+        }
       }
     );
   }
@@ -213,10 +233,11 @@
     // Stop announcing presence on the discovery topic so other peers no longer see us
     try {
       await discovery?.stop();
+      discovery = null;
     } catch (e) {
       console.warn("Error stopping discovery:", e);
     }
-    // Clear local UI lists
+    // Clear local UI
     discoveredPeers = [];
     invites = [];
   }
@@ -229,7 +250,10 @@
     peerCount = 0;
     activeCollaboration.set(null); // Clear active session
 
-    // Re-join discovery so we become visible again to others
+    // Clear discovery reference before restarting
+    discovery = null;
+
+    // Re-join discovery to become visible again to other peers
     try {
       await ensureDiscovery();
     } catch (e) {
@@ -285,9 +309,6 @@
       d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
     />
   </svg>
-  {#if isCollaborating && peerCount > 0}
-    <span class="badge">{peerCount}</span>
-  {/if}
 </button>
 
 {#if showPanel}
@@ -439,10 +460,7 @@
               <span class="detail-label">Session ID:</span>
               <span class="detail-value">{sessionTopic.slice(0, 20)}...</span>
             </div>
-            <div class="session-detail">
-              <span class="detail-label">Connected Peers:</span>
-              <span class="detail-value">{peerCount}</span>
-            </div>
+            <!-- Removed Connected Peers display -->
           </div>
           <button class="btn-danger" on:click={leaveSession}>
             <svg viewBox="0 0 24 24" width="16" height="16">
@@ -479,6 +497,8 @@
     </div>
   </div>
 {/if}
+
+<!-- Modal and Button styles -->
 
 <style>
   /* Collaborate Button */
