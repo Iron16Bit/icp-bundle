@@ -47,34 +47,34 @@
 
     $: {
         const event = new CustomEvent("editormsg", {
-            detail: {
-                editor: codeMirrorEditor,
-                tabsConfiguration,
-                editableFilterConfiguration,
-                darkModeConfiguration,
-            },
-            bubbles: true,
-            cancelable: true,
-            composed: true,
+        detail: {
+            editor: codeMirrorEditor,
+            tabsConfiguration,
+            editableFilterConfiguration,
+            darkModeConfiguration,
+        },
+        bubbles: true,
+        cancelable: true,
+        composed: true,
         });
         ref?.dispatchEvent(event);
     }
 
     $: {
         if (canvas) {
-            canvasContainer.innerHTML = "";
-            canvasContainer.appendChild(canvas);
+        canvasContainer.innerHTML = "";
+        canvasContainer.appendChild(canvas);
         } else if (
-            outputContainer &&
-            outputContainer.getElementsByTagName("canvas").length > 0
+        outputContainer &&
+        outputContainer.getElementsByTagName("canvas").length > 0
         ) {
-            outputContainer.innerHTML = "";
+        outputContainer.innerHTML = "";
         }
     }
 
     $: {
         if (language == "sql" && outputElement) {
-            outputElement.innerHTML = output;
+        outputElement.innerHTML = output;
         }
     }
 
@@ -84,42 +84,39 @@
 
     onMount(() => {
         editorElement.addEventListener("execute", () => {
-            $editorToExecute = editorElement.firstChild as HTMLElement;
-            $executeRequest = true;
+        $editorToExecute = editorElement.firstChild as HTMLElement;
+        $executeRequest = true;
         });
         // Make editor and output splitted and resizable using split.js
         Split([editorElement, outputContainer], {
-            gutterSize: 1,
-            minSize: 0,
-            sizes:
-                language == "p5" || language == "processing"
-                    ? [50, 50]
-                    : [70, 30],
-            direction: type == "normal" ? "vertical" : "horizontal",
+        gutterSize: 1,
+        minSize: 0,
+        sizes: language == "p5" || language == "processing" ? [50, 50] : [70, 30],
+        direction: type == "normal" ? "vertical" : "horizontal",
         });
 
         // Make canvas and console splitted and resizable using split.js
         if (language == "p5" || language == "processing") {
-            Split([canvasContainer, consoleOutput], {
-                gutterSize: 1,
-                minSize: 0,
-                sizes: [70, 30],
-                direction: "vertical",
-            });
+        Split([canvasContainer, consoleOutput], {
+            gutterSize: 1,
+            minSize: 0,
+            sizes: [70, 30],
+            direction: "vertical",
+        });
         }
 
         // If an id is set and save true, try to get the code from local storage
         if (id && save) {
-            const savedCode = localStorage.getItem(id);
-            if (savedCode) {
-                code = savedCode;
-            }
+        const savedCode = localStorage.getItem(id);
+        if (savedCode) {
+            code = savedCode;
+        }
         }
 
         // Create the CodeMirror editor
         let res;
         if (!codeMirrorEditor) {
-            res = createEditor(editorElement, syntax, theme == "dark", code);
+        res = createEditor(editorElement, syntax, theme == "dark", code);
         }
 
         // Get access to the editor instance
@@ -128,24 +125,24 @@
         editableFilterConfiguration = res.editableFilterConfiguration;
         darkModeConfiguration = res.darkModeConfiguration;
     });
-</script>
+    </script>
 
-<div
+    <div
     bind:this={ref}
     id="editor-container"
     style={type == "vertical"
         ? "display: flex; flex-direction: row; justify-content: space-between;"
         : "display: flex; flex-direction: column;"}
->
+    >
     <!-- Workaround to make vite load custom styles - otherwise they are deleted automatically -->
     {#if false}
         <div
-            class="gutter gutter-vertical gutter-horizontal cm-editor cm-scroller"
+        class="gutter gutter-vertical gutter-horizontal cm-editor cm-scroller"
         />
         <div class="ͼ1">
-            <div class="cm-line" />
-            <div class="cm-content" />
-            <div class="cm-lineNumbers"><div class="cm-gutterElement" /></div>
+        <div class="cm-line" />
+        <div class="cm-content" />
+        <div class="cm-lineNumbers"><div class="cm-gutterElement" /></div>
         </div>
         <div><table><tr><th /><td /></tr></table></div>
     {/if}
@@ -154,8 +151,8 @@
     <div
         bind:this={editorElement}
         style={type == "vertical"
-            ? "height: 100%; width: calc(100% - var(--output-height));"
-            : ""}
+        ? "height: 100%; width: calc(100% - var(--output-height));"
+        : ""}
         id="editor"
     />
     <div id="cover"></div>
@@ -164,78 +161,76 @@
         bind:this={outputContainer}
         id="editor-output"
         style={type == "vertical"
-            ? "height: 100%; width: var(--output-height); min-height: 0;"
-            : ""}
+        ? "height: 100%; width: var(--output-height); min-height: 0;"
+        : ""}
     >
         {#if language == "p5" || language == "processing"}
+        <div
+            id="output-container"
+            style={type == "vertical"
+            ? "height: 100%; overflow: hidden;"
+            : "width: 100%;"}
+            class="rounded-scrollbar"
+        >
             <div
-                id="output-container"
-                style={type == "vertical"
-                    ? "height: 100%; overflow: hidden;"
-                    : "width: 100%;"}
-                class="rounded-scrollbar"
+            bind:this={canvasContainer}
+            style="display: flex; flex-direction: column; width: 100%; height: 70%"
+            />
+            <div
+            bind:this={consoleOutput}
+            style="height: 30%; position: relative; z-index: 99; background-color: var(--main-output-bg-color);"
             >
-                <div
-                    bind:this={canvasContainer}
-                    style="display: flex; flex-direction: column; width: 100%; height: 70%"
-                />
-                <div
-                    bind:this={consoleOutput}
-                    style="height: 30%; position: relative; z-index: 99; background-color: var(--main-output-bg-color);"
-                >
-                    <div
-                        id="output-title-container"
-                        style={type == "vertical"
-                            ? `height: min(1.6vw, 3.2vh);`
-                            : ""}
-                    >
-                        <p id="output-title">CONSOLE</p>
-                    </div>
-                    <div
-                        bind:this={outputElement}
-                        style="{iserror
-                            ? 'color: var(--error-color);'
-                            : ''} display: flex; flex-direction: column; width: 100%; height: calc(100% - min(1.6vw, 3.2vh)); padding: 5px; box-sizing: border-box; white-space:pre-wrap; overflow: auto;"
-                        class="output-text"
-                    >
-                        {output}
-                    </div>
-                </div>
-            </div>
-        {:else}
             <div
                 id="output-title-container"
-                style={type == "vertical"
-                    ? `height: min(1.6vw, 3.2vh); margin-top: min(0.3vw, 0.6vh);`
-                    : ""}
+                style={type == "vertical" ? `height: min(1.6vw, 3.2vh);` : ""}
             >
-                <p id="output-title">OUTPUT</p>
+                <p id="output-title">CONSOLE</p>
             </div>
-            <!-- Output console.log -->
             <div
-                id="output-container"
-                style={type == "vertical"
-                    ? `height: calc(100% - min(1.6vw, 3.2vh)} - min(0.3vw, 0.6vh));`
-                    : "width: 100%;"}
-                class="rounded-scrollbar"
+                bind:this={outputElement}
+                style="{iserror
+                ? 'color: var(--error-color);'
+                : ''} display: flex; flex-direction: column; width: 100%; height: calc(100% - min(1.6vw, 3.2vh)); padding: 5px; box-sizing: border-box; white-space:pre-wrap; overflow: auto;"
+                class="output-text"
             >
-                {#if language == "sql"}
-                    <div
-                        bind:this={outputElement}
-                        style={iserror ? "color: var(--error-color);" : ""}
-                        class="output-text"
-                        id="output"
-                    />
-                {:else}
-                    <p
-                        style={iserror ? "color: var(--error-color);" : ""}
-                        class="output-text"
-                        id="output"
-                    >
-                        {output}
-                    </p>
-                {/if}
+                {output}
             </div>
+            </div>
+        </div>
+        {:else}
+        <div
+            id="output-title-container"
+            style={type == "vertical"
+            ? `height: min(1.6vw, 3.2vh); margin-top: min(0.3vw, 0.6vh);`
+            : ""}
+        >
+            <p id="output-title">OUTPUT</p>
+        </div>
+        <!-- Output console.log -->
+        <div
+            id="output-container"
+            style={type == "vertical"
+            ? `height: calc(100% - min(1.6vw, 3.2vh)} - min(0.3vw, 0.6vh));`
+            : "width: 100%;"}
+            class="rounded-scrollbar"
+        >
+            {#if language == "sql"}
+            <div
+                bind:this={outputElement}
+                style={iserror ? "color: var(--error-color);" : ""}
+                class="output-text"
+                id="output"
+            />
+            {:else}
+            <p
+                style={iserror ? "color: var(--error-color);" : ""}
+                class="output-text"
+                id="output"
+            >
+                {output}
+            </p>
+            {/if}
+        </div>
         {/if}
     </div>
 </div>
@@ -296,12 +291,12 @@
     }
     @media screen and (max-width: 992px) {
         .output-text {
-            color: var(--output-text-color);
-            padding: min(0.05vw, 0.1vh) 0 0 min(0.6vw, 1.2vh);
-            margin: 0;
-            font-family: monospace;
-            font-size: var(--text-size);
-            white-space: pre-wrap;
+        color: var(--output-text-color);
+        padding: min(0.05vw, 0.1vh) 0 0 min(0.6vw, 1.2vh);
+        margin: 0;
+        font-family: monospace;
+        font-size: var(--text-size);
+        white-space: pre-wrap;
         }
     }
 
@@ -312,19 +307,19 @@
     }
     @media screen and (max-width: 992px) {
         .cm-editor {
-            height: 100%;
-            font-size: var(--text-size);
+        height: 100%;
+        font-size: var(--text-size);
         }
     }
     @media screen and (max-width: 992px) {
         #cover {
-            height: calc(100% - min(1.6vw, 3.2vh));
-            width: min(5vw, 11vh);
-            display: block;
-            left: calc(100% - min(5vw, 11vh));
-            top: 0;
-            position: absolute;
-            z-index: 90;
+        height: calc(100% - min(1.6vw, 3.2vh));
+        width: min(5vw, 11vh);
+        display: block;
+        left: calc(100% - min(5vw, 11vh));
+        top: 0;
+        position: absolute;
+        z-index: 90;
         }
     }
 
@@ -380,8 +375,8 @@
 
     @media screen and (max-width: 992px) {
         table {
-            margin: min(0.49vw, 0.98vh);
-            border-collapse: collapse;
+        margin: min(0.49vw, 0.98vh);
+        border-collapse: collapse;
         }
     }
 
@@ -430,5 +425,34 @@
 
     .rounded-scrollbar::-webkit-scrollbar-thumb {
         border-radius: 10px;
+    }
+
+    :global(.cm-ySelectionInfo) {
+        position: absolute;
+        top: -1.05em;
+        left: -1px;
+        font-size: 0.75em;
+        font-family: serif;
+        font-style: normal;
+        font-weight: normal;
+        line-height: normal;
+        user-select: none;
+        color: white;
+        padding-left: 2px;
+        padding-right: 2px;
+        z-index: 101;
+        transition: opacity 0.3s ease-in-out;
+        background-color: inherit;
+        opacity: 0;
+        white-space: nowrap;
+        transform: translateY(200%) !important;
+    }
+
+    :global(.cm-editor .cm-ySelectionInfo) {
+        transform: translateY(200%) !important;
+    }
+
+    :global(.cm-ySelectionInfo:hover) {
+        opacity: 1;
     }
 </style>
