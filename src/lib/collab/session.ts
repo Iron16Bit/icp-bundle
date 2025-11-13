@@ -118,7 +118,16 @@ export async function startCollaborativeSessionWithNode(
   const ytext = ydoc.getText("codemirror");
   const awareness = new Awareness(ydoc);
 
-  // Reuse the existing libp2p node
+  // Capture initial content FIRST
+  const initialContent = editor.state.doc.toString();
+  
+  // If initiator with content, seed the Yjs doc BEFORE creating the provider
+  if (isInitiator && initialContent.length > 0) {
+    console.log('[Session] Initiator seeding document with', initialContent.length, 'characters');
+    ytext.insert(0, initialContent);
+  }
+
+  // NOW create and start the provider
   const provider = new Libp2pProvider(ydoc, node, topic, awareness);
   await provider.start();
 
@@ -131,19 +140,10 @@ export async function startCollaborativeSessionWithNode(
   awareness.on("update", () => onPeersChanged?.(provider.getPeerNames()));
   onStatus?.("Connected");
 
-  const initialContent = editor.state.doc.toString();
-  if (isInitiator) {
-    // Initiator peer: share your editor content
-    ydoc.transact(() => {
-      if (ytext.length === 0 && initialContent.length > 0) {
-        ytext.insert(0, initialContent);
-      }
-    }, "seed");
-  } else {
-    // Joining peer: clear editor and wait for sync
-    if (initialContent.length > 0) {
-      editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
-    }
+  // Clear the editor if we're NOT the initiator
+  if (!isInitiator && initialContent.length > 0) {
+    console.log('[Session] Joining peer - clearing editor, waiting for sync');
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: "" } });
   }
 
   const undoManager = new Y.UndoManager(ytext);
@@ -154,7 +154,6 @@ export async function startCollaborativeSessionWithNode(
 
   return {
     end: async () => {
-      // remove only the compartment we used for yCollab so other editor extensions stay intact
       editor.dispatch({ effects: compartment.reconfigure([]) });
       ydoc.off("update", onYUpdate);
       await provider?.destroy?.();

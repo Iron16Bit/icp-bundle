@@ -1,16 +1,21 @@
 import { getSharedLibp2p } from "./sharedNode";
 import { fromString, toString } from "uint8arrays";
+import { multiaddr } from "@multiformats/multiaddr";
+import type { Libp2p } from "libp2p";
 
 type DiscoMsg =
     | { type: "disco-presence"; id: string; name: string }
     | { type: "disco-invite"; to: string; from: string; topic: string; name: string }
-    | { type: "disco-left"; id: string };
+    | { type: "disco-left"; id: string }
+    | { type: "relay-discovery"; peers: Array<{ peerId: string; multiaddrs?: string[] }> };
 
 export class DiscoveryClient {
     private topic: string;
-    private node: any = null;
+    private node: Libp2p | null = null;
     private name = "";
     private id = "";
+    public onPeerDiscovered: ((peer: { id: string; name: string }) => void) | null = null;
+    public onInviteReceived: ((invite: { from: { id: string; name: string }; topic: string }) => void) | null = null;
     private onPeersCb: (peers: { id: string; name: string }[]) => void = () => {};
     private onInviteCb: (from: { id: string; name: string }, topic: string) => void = () => {};
     private peers = new Map<string, string>();
@@ -21,35 +26,95 @@ export class DiscoveryClient {
         const { subscriptions } = ev.detail ?? {};
         const sub = subscriptions?.find((s: any) => s.topic === this.topic && s.subscribe === true);
         if (sub) {
-        this.flushQueue();
-        this.announcePresence().catch(() => {});
+            this.flushQueue();
+            this.announcePresence().catch(() => {});
         }
     };
 
-    constructor(topic: string) {
-        this.topic = topic || "icp.disco.v1";
+    constructor(node: Libp2p, topic: string) {
+        this.node = node;
+        this.topic = topic;
+        console.log(`[Discovery] Created with topic: ${topic}`);
     }
 
-    private onMessage = (ev: any) => {
+    private onMessage = async (ev: any) => {
         const { topic, data } = ev.detail ?? {};
         if (topic !== this.topic) return;
         try {
-        const msg = JSON.parse(toString(data)) as DiscoMsg;
-        if (msg.type === "disco-presence") {
-            if (msg.id === this.id) return;
-            this.peers.set(msg.id, msg.name);
-            this.onPeersCb(this.getPeers());
-        } else if (msg.type === "disco-invite") {
-            if (msg.to !== this.id) return;
-            this.onInviteCb({ id: msg.from, name: msg.name }, msg.topic);
-        } else if (msg.type === "disco-left") {
-            // Remove peer who explicitly left discovery
-            if (msg.id && this.peers.has(msg.id)) {
-                this.peers.delete(msg.id);
-                this.onPeersCb(this.getPeers());
+            const msg = JSON.parse(toString(data)) as DiscoMsg;
+            
+            if (msg.type === "relay-discovery") {
+                console.log(`[Discovery] 📡 Received relay discovery with ${msg.peers?.length || 0} peers`);
+                
+                if (!msg.peers || !Array.isArray(msg.peers)) {
+                    console.warn('[Discovery] Invalid relay discovery format');
+                    return;
+                }
+                
+                // Dial each peer through the circuit relay
+                for (const peer of msg.peers) {
+                    if (!peer.peerId || peer.peerId === this.id) continue;
+                    
+                    console.log(`[Discovery] 🔌 Attempting to dial peer ${peer.peerId.slice(0, 8)}`);
+                    
+                    // Check if already connected
+                    const connections = this.node!.getConnections().filter(
+                        conn => conn.remotePeer.toString() === peer.peerId
+                    );
+                    
+                    if (connections.length > 0) {
+                        console.log(`[Discovery] Already connected to ${peer.peerId.slice(0, 8)}`);
+                        continue;
+                    }
+                    
+                    // Try to dial using circuit relay address
+                    if (peer.multiaddrs && peer.multiaddrs.length > 0) {
+                        try {
+                            const addr = multiaddr(peer.multiaddrs[0]);
+                            await this.node!.dial(addr);
+                            console.log(`[Discovery] Connected to peer ${peer.peerId.slice(0, 8)}`);
+                        } catch (err) {
+                            console.warn(`[Discovery] Failed to dial ${peer.peerId.slice(0, 8)}:`, err);
+                        }
+                    }
+                }
+                return;
             }
+            
+            if (msg.type === "disco-presence") {
+                if (msg.id === this.id) return;
+                this.peers.set(msg.id, msg.name);
+                
+                if (this.onPeersCb) {
+                    this.onPeersCb(this.getPeers());
+                }
+                
+                if (this.onPeerDiscovered) {
+                    this.onPeerDiscovered({ id: msg.id, name: msg.name });
+                }
+            } else if (msg.type === "disco-invite") {
+                if (msg.to !== this.id) return;
+                const invite = { from: { id: msg.from, name: msg.name }, topic: msg.topic };
+                
+                if (this.onInviteCb) {
+                    this.onInviteCb({ id: msg.from, name: msg.name }, msg.topic);
+                }
+                
+                if (this.onInviteReceived) {
+                    this.onInviteReceived(invite);
+                }
+            } else if (msg.type === "disco-left") {
+                // Remove peer who explicitly left discovery
+                if (msg.id && this.peers.has(msg.id)) {
+                    this.peers.delete(msg.id);
+                    if (this.onPeersCb) {
+                        this.onPeersCb(this.getPeers());
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[Discovery] Error processing message:', err);
         }
-        } catch {}
     };
 
     async start(
@@ -57,12 +122,15 @@ export class DiscoveryClient {
         onPeers: (p: { id: string; name: string }[]) => void,
         onInvite: (from: { id: string; name: string }, topic: string) => void
     ) {
-        this.node = await getSharedLibp2p();
+        if (!this.node) {
+            this.node = await getSharedLibp2p();
+        }
         this.name = name;
         this.id = this.node.peerId.toString();
         this.onPeersCb = onPeers;
         this.onInviteCb = onInvite;
 
+        console.log(`[Discovery] Subscribing to topic: ${this.topic}`);
         await this.node.services.pubsub.subscribe(this.topic);
         this.node.services.pubsub.addEventListener("message", this.onMessage);
         this.node.services.pubsub.addEventListener("subscription-change", this.onSubChange);
@@ -76,21 +144,19 @@ export class DiscoveryClient {
         if (!this.node) return;
         clearInterval(this.presenceTimer);
         try {
-            // best-effort announce that we're leaving the discovery topic
             await this.publishSafe({ type: "disco-left", id: this.id });
         } catch (e) {
-            // ignore
+            // Ignore
         }
         this.node.services.pubsub.removeEventListener("message", this.onMessage);
         this.node.services.pubsub.removeEventListener("subscription-change", this.onSubChange);
         try {
             await this.node.services.pubsub.unsubscribe(this.topic);
         } catch (e) {
-            // ignore unsubscribe errors
+            // Ignore unsubscribe errors
         }
         this.queue = [];
         this.peers.clear();
-        // notify UI if needed
         this.onPeersCb(this.getPeers());
     }
 
@@ -104,51 +170,57 @@ export class DiscoveryClient {
     }
 
     private async publishSafe(msg: DiscoMsg): Promise<boolean> {
+        if (!this.node) return false;
         const encoded = fromString(JSON.stringify(msg));
         try {
-        await this.node.services.pubsub.publish(this.topic, encoded);
-        return true;
+            await this.node.services.pubsub.publish(this.topic, encoded);
+            return true;
         } catch (e: any) {
-        const noPeers =
-            typeof e?.message === "string" &&
-            (e.message.includes("NoPeersSubscribedToTopic") || e.message.includes("PublishError.NoPeersSubscribedToTopic"));
-        if (noPeers) {
-            this.queue.push(encoded);
-            return false;
-        }
-        throw e;
+            const noPeers =
+                typeof e?.message === "string" &&
+                (e.message.includes("NoPeersSubscribedToTopic") || e.message.includes("PublishError.NoPeersSubscribedToTopic"));
+            if (noPeers) {
+                this.queue.push(encoded);
+                return false;
+            }
+            throw e;
         }
     }
 
     private async flushQueue() {
-        if (!this.queue.length) return;
+        if (!this.node || !this.queue.length) return;
         try {
-        const subs = this.node.services.pubsub.getSubscribers(this.topic) || [];
-        if (subs.length === 0) return;
+            const subs = this.node.services.pubsub.getSubscribers(this.topic) || [];
+            if (subs.length === 0) return;
         } catch {
-        return;
+            return;
         }
         const pending = this.queue.splice(0, this.queue.length);
         for (const payload of pending) {
-        try {
-            await this.node.services.pubsub.publish(this.topic, payload);
-        } catch (e: any) {
-            const noPeers =
-            typeof e?.message === "string" &&
-            (e.message.includes("NoPeersSubscribedToTopic") || e.message.includes("PublishError.NoPeersSubscribedToTopic"));
-            if (noPeers) {
-            this.queue.push(payload);
-            break;
+            try {
+                await this.node.services.pubsub.publish(this.topic, payload);
+            } catch (e: any) {
+                const noPeers =
+                    typeof e?.message === "string" &&
+                    (e.message.includes("NoPeersSubscribedToTopic") || e.message.includes("PublishError.NoPeersSubscribedToTopic"));
+                if (noPeers) {
+                    this.queue.push(payload);
+                    break;
+                }
             }
         }
-        }
-    }
-
-    private async publish(msg: DiscoMsg) {
-        await this.publishSafe(msg);
     }
 
     private async announcePresence() {
         await this.publishSafe({ type: "disco-presence", id: this.id, name: this.name });
+    }
+
+    static async create(
+        discoveryTopic: string,
+        relayAddr?: string
+    ): Promise<DiscoveryClient> {
+        console.log(`[Discovery] Creating client for topic: ${discoveryTopic}`);
+        const node = await getSharedLibp2p();
+        return new DiscoveryClient(node, discoveryTopic);
     }
 }

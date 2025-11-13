@@ -12,6 +12,7 @@
   } from "../collab/session";
   import { DiscoveryClient } from "../collab/discovery";
   import { getSharedLibp2p } from "../collab/sharedNode";
+  import { DEFAULT_RELAY } from "../collab/constants"; 
   import { activeCollaboration } from "../../stores";
   import { get } from "svelte/store";
 
@@ -37,6 +38,7 @@
   let invites: { from: { id: string; name: string }; topic: string }[] = [];
   let collabSession: CollabSession | null = null;
   let userName: string | null = null;
+  let pendingInvites = new Set<string>(); 
 
   let showAlert = false;
 
@@ -44,6 +46,25 @@
    * FUNCTIONS
    */
   const dispatch = createEventDispatcher();
+
+  // Initialize userName on component mount
+  onMount(() => {
+    // Generate username only once when component loads
+    if (!userName) {
+      userName = generateUserName();
+    }
+
+    const interval = setInterval(() => {
+      if (isCollaborating) {
+        // Do nothing
+      }
+    }, 2000);
+    return () => {
+      clearInterval(interval);
+      discovery?.stop();
+      collabSession?.end();
+    };
+  });
 
   function generateRandomColor() {
     const colors = [
@@ -149,40 +170,36 @@
   }
 
   async function ensureDiscovery() {
-    // If discovery exists but was stopped, clear it first
-    if (discovery) {
-      // Check if it's actually running by trying to get peers
-      try {
-        const peers = discovery.getPeers();
-        if (peers !== undefined) {
-          return; // Discovery is running, nothing to do
-        }
-      } catch (e) {
-        discovery = null;
+    if (discovery) return;
+
+    // Create the discovery client
+    discovery = await DiscoveryClient.create(getDiscoveryTopic());
+
+    // Set up callbacks before calling start
+    discovery.onPeerDiscovered = (peer: { id: string; name: string }) => {
+      if (!discoveredPeers.find((p) => p.id === peer.id)) {
+        discoveredPeers = [...discoveredPeers, peer];
       }
-    }
+    };
 
-    if (!userName) {
-      userName = generateUserName();
-    }
-    const discoTopic = getDiscoveryTopic();
+    discovery.onInviteReceived = (invite: {
+      from: { id: string; name: string };
+      topic: string;
+    }) => {
+      // Create unique key for this invite
+      const inviteKey = `${invite.from.id}-${invite.topic}`;
 
-    // Create a fresh discovery instance
-    discovery = new DiscoveryClient(discoTopic);
+      // Only add if we haven't seen this invite before
+      if (!pendingInvites.has(inviteKey)) {
+        pendingInvites.add(inviteKey);
+        invites = [...invites, invite];
+      }
+    };
+
     await discovery.start(
-      userName!,
-      (peers) => {
-        discoveredPeers = peers;
-      },
-      (from, topic) => {
-        // Check if invite already exists to prevent duplicates
-        const exists = invites.some(
-          (inv) => inv.from.id === from.id && inv.topic === topic
-        );
-        if (!exists) {
-          invites = [{ from, topic }, ...invites];
-        }
-      }
+      userName ?? "Anonymous",
+      () => {}, // Empty callback since onPeerDiscovered handles it
+      () => {} // Empty callback since onInviteReceived handles it
     );
   }
 
@@ -200,72 +217,119 @@
 
   async function acceptInvite(inviteIdx: number) {
     const invite = invites[inviteIdx];
+
+    // Remove from pending set
+    const inviteKey = `${invite.from.id}-${invite.topic}`;
+    pendingInvites.delete(inviteKey);
+
     invites.splice(inviteIdx, 1);
-    await startSession(invite.topic, false); // not initiator
+    await startSession(invite.topic, false);
     showPanel = false;
   }
 
   async function declineInvite(inviteIdx: number) {
+    const invite = invites[inviteIdx];
+
+    // Remove from pending set
+    const inviteKey = `${invite.from.id}-${invite.topic}`;
+    pendingInvites.delete(inviteKey);
+
     invites.splice(inviteIdx, 1);
   }
 
   async function startSession(topic: string, isInitiator: boolean) {
-    if (!editor) return;
-    const node = await getSharedLibp2p();
-    const color = generateRandomColor();
-    collabSession = await startCollaborativeSessionWithNode({
-      editor,
-      topic,
-      userInfo: {
-        name: userName ?? `User-${Math.floor(Math.random() * 1000)}`,
-        color,
-      },
-      onPeersChanged: (names) => (peerCount = names.length),
-      onStatus: () => {},
-      node,
-      isInitiator,
-    });
-    isCollaborating = true;
-    sessionTopic = topic;
-    activeCollaboration.set(topic);
-    dispatch("collaborationStarted", { topic });
-
-    // Stop announcing presence on the discovery topic so other peers no longer see us
     try {
-      await discovery?.stop();
-      discovery = null;
-    } catch (e) {
-      console.warn("Error stopping discovery:", e);
+      // Get the shared node
+      const sharedNode = await getSharedLibp2p();
+
+      // Start the collaboration session with the shared node
+      collabSession = await startCollaborativeSessionWithNode({
+        editor: editor!,
+        topic,
+        relayAddr: DEFAULT_RELAY,
+        userInfo: {
+          name: userName || "Anonymous",
+          color: generateRandomColor(),
+        },
+        onPeersChanged: (peerNames) => (peerCount = peerNames.length),
+        onStatus: (status) => console.log(status),
+        node: sharedNode,
+        isInitiator,
+      });
+
+      sessionTopic = topic;
+      isCollaborating = true;
+
+      // Update the store
+      activeCollaboration.set({
+        topic,
+        isActive: true,
+        peerCount: 0,
+      });
+
+      console.log(`Started collaboration session on topic: ${topic}`);
+    } catch (error) {
+      console.error("Failed to start session:", error);
+      throw error;
     }
-    // Clear local UI
-    discoveredPeers = [];
-    invites = [];
   }
 
   async function leaveSession() {
+    console.log("[Collab] Leaving session...");
+
+    // Stop the collaboration session
     await collabSession?.end();
     collabSession = null;
+
+    // Reset all state
     isCollaborating = false;
     sessionTopic = null;
     peerCount = 0;
-    activeCollaboration.set(null); // Clear active session
+    discoveredPeers = [];
+    invites = [];
+    pendingInvites.clear();
 
-    // Clear discovery reference before restarting
-    discovery = null;
+    // Clear the store
+    activeCollaboration.set(null);
 
-    // Re-join discovery to become visible again to other peers
+    // Stop and clear discovery
+    if (discovery) {
+      await discovery.stop();
+      discovery = null;
+    }
+
+    // Small delay to ensure cleanup completes
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Re-join discovery to become visible again
     try {
       await ensureDiscovery();
+      console.log("[Collab] Rejoined discovery, ready to collaborate again");
     } catch (e) {
-      console.warn("Error restarting discovery:", e);
+      console.error("Error restarting discovery:", e);
     }
   }
 
   async function togglePanel() {
-    if (get(activeCollaboration) && get(activeCollaboration) !== sessionTopic) {
+    // If already collaborating from THIS editor, leave the session
+    if (isCollaborating && sessionTopic) {
+      await leaveSession();
+      showPanel = false; // Close the panel after leaving
+      return;
+    }
+
+    // If collaborating from another editor, show alert
+    const activeCollab = get(activeCollaboration);
+    if (
+      activeCollab &&
+      activeCollab.topic !== sessionTopic &&
+      activeCollab.isActive
+    ) {
       showAlert = true;
       return;
     }
+
+    // Otherwise, toggle the panel
     showPanel = !showPanel;
     if (showPanel) {
       await ensureDiscovery();
@@ -275,7 +339,6 @@
   async function toggleCollaboration() {
     await togglePanel();
   }
-
   // Check status periodically to update peer count
   onMount(() => {
     const interval = setInterval(() => {
@@ -298,17 +361,27 @@
   class="collaborate-btn"
   class:active={isCollaborating}
   data-theme={theme}
+  title={isCollaborating ? "Leave collaboration" : "Start collaboration"}
   style={`position: absolute; right: ${
     type == "vertical"
       ? "calc(var(--output-height) + min(0.5vw, 1vh))"
       : "min(0.5vw, 1vh)"
   }; top: calc(min(2.5vw, 5vh) + min(2vw, 4vh) + min(1vw, 2vh));`}
 >
-  <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
-    />
-  </svg>
+  <!-- Show different icon when collaborating -->
+  {#if isCollaborating}
+    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
+      />
+    </svg>
+  {:else}
+    <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"
+      />
+    </svg>
+  {/if}
 </button>
 
 {#if showPanel}

@@ -94,6 +94,8 @@ export class Libp2pProvider {
   private _boundDocUpdate?: (u: Uint8Array, o: any) => void;
   private _boundAwarenessUpdate?: (...args: any[]) => void;
   private ownsLibp2p: boolean;
+  private discoveredPeers = new Set<string>();
+  private relayPeerId: string | null = null; // NEW: Track relay peer ID
 
   constructor(ydoc: Y.Doc, libp2p: Libp2p, topic: string, awareness?: Awareness, ownsLibp2p = false) {
     this.ydoc = ydoc;
@@ -131,12 +133,22 @@ export class Libp2pProvider {
             rtcpMuxPolicy: "require",
           },
         }),
-        circuitRelayTransport(),
+        circuitRelayTransport({
+          // Add this configuration to prioritize direct connections
+          discoverRelays: 1,
+        }),
       ],
       connectionEncrypters: [noise()],
       streamMuxers: [yamux()],
       connectionGater: {
         denyDialMultiaddr: () => false,
+      },
+      connectionManager: {
+        // Add connection manager settings
+        maxConnections: 100,
+        minConnections: 0,
+        // Ensure we don't keep relay connections when direct ones are available
+        autoDial: true,
       },
       services: {
         pubsub: gossipsub({
@@ -146,7 +158,10 @@ export class Libp2pProvider {
           canRelayMessage: true,
         }),
         identify: identify(),
-        dcutr: dcutr(),
+        dcutr: dcutr({
+          // Ensure DCUtR is properly configured
+          timeout: 30000, // 30 seconds to establish direct connection
+        }),
       },
     });
 
@@ -154,15 +169,34 @@ export class Libp2pProvider {
 
     // Connect to relay
     const relay = relayAddr || DEFAULT_RELAY;
+    let relayPeerId: string | null = null;
     try {
       console.log(`Attempting to dial relay at: ${relay}`);
       const connection = await node.dial(multiaddr(relay));
       console.log("Connected to relay server:", connection.remoteAddr.toString());
+      
+      // Extract relay peer ID
+      relayPeerId = connection.remotePeer.toString();
+      console.log(`Relay Peer ID: ${relayPeerId}`);
+      
+      // Add connection monitoring to see when DCUtR upgrades happen
+      node.addEventListener('connection:open', (evt) => {
+        const conn = evt.detail;
+        console.log(`Connection opened to ${conn.remotePeer.toString()}`);
+        console.log(`Connection type: ${conn.transports[0]}`);
+      });
+      
+      node.addEventListener('connection:close', (evt) => {
+        const conn = evt.detail;
+        console.log(`Connection closed to ${conn.remotePeer.toString()}`);
+      });
     } catch (e) {
       console.error("Relay dial failed:", e);
     }
 
-    return new Libp2pProvider(ydoc, node, topic, awareness, true);
+    const provider = new Libp2pProvider(ydoc, node, topic, awareness, true);
+    provider.relayPeerId = relayPeerId; // Store relay peer ID
+    return provider;
   }
 
   get hasPeers(): boolean {
@@ -374,8 +408,110 @@ export class Libp2pProvider {
 
     await this.announcePresence();
 
-    // Listen for messages
-    this.libp2p.services.pubsub.addEventListener("message", this.messageHandler as any);
+    // Add connection monitoring
+    this.logConnectionTypes();
+    setInterval(() => this.logConnectionTypes(), 10000);
+
+    // **MODIFIED: Listen for ALL messages on this topic**
+    this.libp2p.services.pubsub.addEventListener("message", (async (event: CustomEvent) => {
+      if (event.detail?.topic !== this.topic) return;
+      
+      try {
+        const msgStr = toString(event.detail.data);
+        const msg = JSON.parse(msgStr);
+        
+        console.log(`📨 [Provider] Received message type: ${msg.type}`);
+        
+        // Handle relay discovery messages FIRST, before regular message handler
+        if (msg.type === 'relay-discovery') {
+          console.log(`📡 [Provider] Relay discovery with ${msg.peers?.length || 0} peers`);
+          
+          if (!msg.peers || !Array.isArray(msg.peers)) {
+            console.warn('[Provider] Invalid relay discovery message format');
+            return;
+          }
+          
+          for (const peer of msg.peers) {
+            const peerId = peer.peerId;
+            
+            if (!peerId) {
+              console.warn('[Provider] Peer missing peerId');
+              continue;
+            }
+            
+            // Skip ourselves and the relay
+            if (peerId === this.libp2p.peerId.toString()) {
+              console.log('[Provider] Skipping self');
+              continue;
+            }
+            if (this.relayPeerId && peerId === this.relayPeerId) {
+              console.log('[Provider] Skipping relay');
+              continue;
+            }
+            
+            // Check if already connected
+            const connections = this.libp2p.getConnections().filter(
+              conn => conn.remotePeer.toString() === peerId
+            );
+            if (connections.length > 0) {
+              console.log(`[Provider] Already connected to ${peerId.slice(0, 8)}`);
+              continue;
+            }
+            
+            // Dial using the circuit relay address provided
+            if (peer.multiaddrs && peer.multiaddrs.length > 0) {
+              const circuitAddr = peer.multiaddrs[0];
+              console.log(`🔌 [Provider] Dialing ${peerId.slice(0, 8)} via: ${circuitAddr}`);
+              
+              try {
+                await this.libp2p.dial(multiaddr(circuitAddr));
+                console.log(`✅ [Provider] Connected to ${peerId.slice(0, 8)}`);
+              } catch (err) {
+                console.warn(`❌ [Provider] Failed to dial ${peerId.slice(0, 8)}:`, err);
+              }
+            } else {
+              console.warn(`[Provider] No multiaddrs for peer ${peerId.slice(0, 8)}`);
+            }
+          }
+          return; // Don't process as regular message
+        }
+        
+        // Pass to regular message handler for Yjs messages
+        this.handleMessage(event.detail);
+        
+      } catch (err) {
+        console.error('[Provider] Error processing message:', err);
+      }
+    }) as any);
+
+    // Listen for peers joining
+    this.libp2p.services.pubsub.addEventListener("subscription-change", (async (event: CustomEvent) => {
+      const { peerId, subscriptions } = event.detail;
+      const sub = subscriptions.find((s) => s.topic === this.topic && s.subscribe === true);
+      
+      if (sub) {
+        const peerIdStr = peerId.toString();
+        
+        // Skip relay and ourselves
+        if (this.relayPeerId && peerIdStr === this.relayPeerId) {
+          return;
+        }
+        
+        if (peerIdStr === this.libp2p.peerId.toString()) {
+          return;
+        }
+        
+        console.log(`Peer ${peerIdStr.slice(0, 8)} subscribed to ${this.topic}`);
+        
+        if (!this.discoveredPeers.has(peerIdStr)) {
+          this.discoveredPeers.add(peerIdStr);
+          await this.connectToPeer(peerIdStr);
+        }
+        
+        this.requestSync();
+        this.flushQueue();
+      }
+    }) as any);
 
     // Broadcast Yjs updates
     this._boundDocUpdate = this.broadcastUpdate.bind(this);
@@ -393,26 +529,59 @@ export class Libp2pProvider {
       subscribers.forEach((peer) => console.log(`- Peer: ${peer.toString()}`));
     }, 10000);
 
-    // Handle subscription changes
-    this.libp2p.services.pubsub.addEventListener("subscription-change", ((event: CustomEvent) => {
-      const { peerId, subscriptions } = event.detail;
-      const sub = subscriptions.find((s) => s.topic === this.topic && s.subscribe === true);
-      if (sub) {
-        console.log(`Peer ${peerId} subscribed to our editor topic - sending sync request`);
-        this.requestSync();
-        this.flushQueue();
-      }
-    }) as any);
-
     this.connected = true;
     this.subscribed = true;
 
     setTimeout(() => {
       this.requestSync();
-      const subscribers = this.libp2p.services.pubsub.getSubscribers(this.topic);
-      console.log(`Current subscribers to ${this.topic}: ${subscribers.length}`);
-      subscribers.forEach((peer) => console.log(`- Peer: ${peer.toString()}`));
     }, 1000);
+  }
+
+  /**
+   * Try to establish a direct connection to a peer through the relay
+   */
+  private async connectToPeer(peerIdStr: string) {
+    try {
+      // Check if we're already connected
+      const existingConns = this.libp2p.getConnections().filter(
+        conn => conn.remotePeer.toString() === peerIdStr
+      );
+      
+      if (existingConns.length > 0) {
+        console.log(`Already connected to peer ${peerIdStr.slice(0, 8)}`);
+        return;
+      }
+
+      // Construct a circuit relay address to reach the peer through the relay
+      if (!this.relayPeerId) {
+        console.warn(`Cannot dial peer ${peerIdStr.slice(0, 8)} - no relay peer ID`);
+        return;
+      }
+      
+      const circuitAddr = `/p2p/${this.relayPeerId}/p2p-circuit/p2p/${peerIdStr}`;
+      
+      console.log(`🔌 Attempting to dial peer ${peerIdStr.slice(0, 8)} via circuit relay`);
+      console.log(`   Circuit address: ${circuitAddr}`);
+      
+      const connection = await this.libp2p.dial(multiaddr(circuitAddr));
+      
+      console.log(`✅ Connected to peer ${peerIdStr.slice(0, 8)} via relay`);
+      console.log(`   Connection: ${connection.remoteAddr.toString()}`);
+      console.log(`   🔄 DCUtR should now upgrade to direct WebRTC...`);
+      
+    } catch (error) {
+      console.warn(`❌ Failed to connect to peer ${peerIdStr.slice(0, 8)}:`, error);
+    }
+  }
+
+  private logConnectionTypes() {
+    const connections = this.libp2p.getConnections();
+    console.log(`Active connections: ${connections.length}`);
+    connections.forEach(conn => {
+      const isRelay = conn.remoteAddr.toString().includes('/p2p-circuit');
+      const isWebRTC = conn.remoteAddr.toString().includes('/webrtc');
+      console.log(`  ${conn.remotePeer.toString().slice(0, 8)}: ${isRelay ? 'RELAY' : isWebRTC ? 'WebRTC' : 'OTHER'} - ${conn.remoteAddr.toString()}`);
+    });
   }
 
   async stop() {
@@ -426,6 +595,7 @@ export class Libp2pProvider {
     if (this._boundDocUpdate) this.ydoc.off("update", this._boundDocUpdate);
     if (this._boundAwarenessUpdate) this.awareness.off("update", this._boundAwarenessUpdate as any);
 
+    // Remove message listener properly
     this.libp2p.services.pubsub.removeEventListener("message", this.messageHandler as any);
 
     await this.libp2p.services.pubsub.unsubscribe(this.topic);
@@ -444,7 +614,6 @@ export class Libp2pProvider {
     }
   }
 
-  // Helpers used by session.ts
   getPeerNames(): string[] {
     const peers: string[] = [];
     this.awareness.getStates().forEach((state, id) => {
