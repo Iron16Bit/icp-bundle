@@ -123,6 +123,20 @@ Sometimes you may want to embed editor components in which only some parts of th
 ```
 <python-editor code="print('<EDITABLE>Hello World!</EDITABLE>')" />
 ```
+## P2P Collaborative Editing
+
+When a user clicks the collaborate button:
+
+-  A new topic is created putting together: *slides title + date + current slide number*. The specificity of the topic allows only peers that are working on the same slide to discover eachother, avoiding the discovery of other undesired peers;
+-  A nickname is given to the peer, which is generated following the format: *Adjective + Animal Name*.
+
+The peer then connects to the Relay Server and announces its presence on the previouslt created topic (GossipSub). The following messages can be exchanged when discoverying:
+- Presence: { type: "disco-presence", id, name }
+- Leaving: { type: "disco-left", id }
+- Session invite: { type: "disco-invite", to, from, topic, name }
+- Relay-discovery: { type: "relay-discovery", peers: [{ peerId, multiaddrs? }, ...] }
+
+The user will see the nicknames of the other peers in the same discovery topic and ask one to connect to one of them in a new, private topic. When the other peer accepts, if the NAT allows it they directly connect through eachother through WebRTC. If this fails, they use the Relay Server to forward their messages. Once the collaboration has succesfully started, the synchronization of the 2 editors is handled by yjs-codemirror, an extension for CodeMirror with its protocol for exchanging synchronization messages.
 
 ## Mentions
 - the typescript plugin included in `src/modules/` has been taken from [prisma/text-editors](https://github.com/prisma/text-editors)
