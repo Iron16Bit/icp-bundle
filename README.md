@@ -138,6 +138,8 @@ The peer then connects to the Relay Server and announces its presence on the pre
 
 The user will see the nicknames of the other peers in the same discovery topic and ask one to connect to one of them in a new, private topic. When the other peer accepts, if the NAT allows it they directly connect through eachother through WebRTC. If this fails, they use the Relay Server to forward their messages. Once the collaboration has succesfully started, the synchronization of the 2 editors is handled by yjs-codemirror, an extension for CodeMirror with its protocol for exchanging synchronization messages.
 
+Some additional details can be found in `src/lib/collab`.
+
 ## Mentions
 - the typescript plugin included in `src/modules/` has been taken from [prisma/text-editors](https://github.com/prisma/text-editors)
 - run java code in the browser: [teavm-javac](https://github.com/frankbauer/teavm-javac) based on [frankbauer](https://github.com/frankbauer)'s fork (but modified to work as a SharedWorker)

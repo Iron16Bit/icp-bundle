@@ -169,7 +169,7 @@
     return topic;
   }
 
-  async function ensureDiscovery() {
+  async function startDiscovery() {
     if (discovery) return;
 
     // Create the discovery client
@@ -208,7 +208,7 @@
       alert("Editor not ready");
       return;
     }
-    await ensureDiscovery();
+    await startDiscovery();
     const topic = secretTopic();
     await discovery!.invite(peerId, topic);
     await startSession(topic, true); // initiator
@@ -303,7 +303,7 @@
 
     // Re-join discovery to become visible again
     try {
-      await ensureDiscovery();
+      await startDiscovery();
       console.log("[Collab] Rejoined discovery, ready to collaborate again");
     } catch (e) {
       console.error("Error restarting discovery:", e);
@@ -332,7 +332,7 @@
     // Otherwise, toggle the panel
     showPanel = !showPanel;
     if (showPanel) {
-      await ensureDiscovery();
+      await startDiscovery();
     }
   }
 
@@ -416,7 +416,7 @@
           <div class="user-name">{formatUserName(userName ?? "Anonymous")}</div>
         </div>
         {#if !discovery}
-          <button class="btn-primary" on:click={ensureDiscovery}
+          <button class="btn-primary" on:click={startDiscovery}
             >Join Discovery</button
           >
         {/if}
