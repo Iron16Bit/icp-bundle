@@ -4,7 +4,7 @@
   /**
    * IMPORTS
    */
-  import { onMount, createEventDispatcher } from "svelte";
+  import { onMount } from "svelte";
   import type { EditorView } from "@codemirror/view";
   import {
     startCollaborativeSessionWithNode,
@@ -45,8 +45,6 @@
   /**
    * FUNCTIONS
    */
-  const dispatch = createEventDispatcher();
-
   // Initialize userName on component mount
   onMount(() => {
     // Generate username only once when component loads
@@ -331,9 +329,6 @@
 
     // Otherwise, toggle the panel
     showPanel = !showPanel;
-    if (showPanel) {
-      await startDiscovery();
-    }
   }
 
   async function toggleCollaboration() {
