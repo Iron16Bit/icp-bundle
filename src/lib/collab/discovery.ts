@@ -44,7 +44,7 @@ export class DiscoveryClient {
             const msg = JSON.parse(toString(data)) as DiscoMsg;
             
             if (msg.type === "relay-discovery") {
-                console.log(`[Discovery] 📡 Received relay discovery with ${msg.peers?.length || 0} peers`);
+                console.log(`[Discovery] Received relay discovery with ${msg.peers?.length || 0} peers`);
                 
                 if (!msg.peers || !Array.isArray(msg.peers)) {
                     console.warn('[Discovery] Invalid relay discovery format');
@@ -55,7 +55,7 @@ export class DiscoveryClient {
                 for (const peer of msg.peers) {
                     if (!peer.peerId || peer.peerId === this.id) continue;
                     
-                    console.log(`[Discovery] 🔌 Attempting to dial peer ${peer.peerId.slice(0, 8)}`);
+                    console.log(`[Discovery] Attempting to dial peer ${peer.peerId.slice(0, 8)}`);
                     
                     // Check if already connected
                     const connections = this.node!.getConnections().filter(
