@@ -12,7 +12,7 @@
   } from "../collab/session";
   import { DiscoveryClient } from "../collab/discovery";
   import { getSharedLibp2p } from "../collab/sharedNode";
-  import { DEFAULT_RELAY } from "../collab/constants"; 
+  import { DEFAULT_RELAY } from "../collab/constants";
   import { activeCollaboration } from "../../stores";
   import { get } from "svelte/store";
 
@@ -38,7 +38,7 @@
   let invites: { from: { id: string; name: string }; topic: string }[] = [];
   let collabSession: CollabSession | null = null;
   let userName: string | null = null;
-  let pendingInvites = new Set<string>(); 
+  let pendingInvites = new Set<string>();
 
   let showAlert = false;
 
@@ -309,6 +309,19 @@
   }
 
   async function togglePanel() {
+    // Check if this is the first time and ask for permission
+    const hasSeenCollabAlert = localStorage.getItem(
+      "icp-collab-first-click"
+    );
+    if (!hasSeenCollabAlert) {
+      const accepted = confirm("You are going to activate P2P Collaborative Editing. Do you want to proceed?");
+      if (accepted) {
+        localStorage.setItem("icp-collab-first-click", "true");
+        showPanel = true;
+      }
+      return;
+    }
+
     // If already collaborating from THIS editor, leave the session
     if (isCollaborating && sessionTopic) {
       await leaveSession();

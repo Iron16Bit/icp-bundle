@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "gulp",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' gulp",
     "prepare-cpp": "gulp prepareCpp",
     "prepare-python": "gulp preparePython",
     "prepare-java": "gulp prepareJava",
